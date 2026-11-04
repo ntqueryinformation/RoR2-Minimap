@@ -85,6 +85,26 @@ namespace OpenMinimap.Util
             });
         }
 
+        // Soft view cone: apex at the bottom, fading toward the tip (camera FOV wedge).
+        public static Texture2D ConeAlpha(int size)
+        {
+            Vector2 apex = new Vector2(size * 0.5f, size * 0.12f);
+            Vector2 left = new Vector2(size * 0.02f, size * 0.98f);
+            Vector2 right = new Vector2(size * 0.98f, size * 0.98f);
+            return Bake(size, (x, y) =>
+            {
+                var p = new Vector2(x + 0.5f, y + 0.5f);
+                float d1 = Sign(p, apex, left);
+                float d2 = Sign(p, left, right);
+                float d3 = Sign(p, right, apex);
+                bool inside = d1 >= 0 && d2 >= 0 && d3 >= 0;
+                if (!inside)
+                    return Color.clear;
+                float t = Mathf.Clamp01((p.y - apex.y) / (left.y - apex.y));
+                return new Color(1f, 1f, 1f, Mathf.Lerp(0.45f, 0.08f, t));
+            });
+        }
+
         private static float Sign(Vector2 p, Vector2 a, Vector2 b)
         {
             return (b.x - a.x) * (p.y - a.y) - (a.y - b.y) * (p.x - a.x);

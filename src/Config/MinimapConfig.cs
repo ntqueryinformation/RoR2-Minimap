@@ -56,6 +56,11 @@ namespace OpenMinimap.Config
         public readonly ConfigEntry<bool> ClampToEdge;
         public readonly ConfigEntry<bool> ElevationArrows;
         public readonly ConfigEntry<float> ElevationThreshold; // meters
+        public readonly ConfigEntry<bool> ShowViewCone;
+        public readonly ConfigEntry<bool> ShowDistanceRings;
+        public readonly ConfigEntry<int> DistanceRingSpacing;  // meters between rings
+        public readonly ConfigEntry<bool> ShowNorthMarker;
+        public readonly ConfigEntry<bool> ShowStageInfo;
 
         // Compass
         public readonly ConfigEntry<int> CompassWidth;
@@ -64,6 +69,8 @@ namespace OpenMinimap.Config
         public readonly ConfigEntry<bool> CompassTicks;
         public readonly ConfigEntry<bool> CompassClampMarkers;
         public readonly ConfigEntry<bool> CompassInvert;
+        public readonly ConfigEntry<bool> CompassDistanceLabels;
+        public readonly ConfigEntry<bool> CompassCenterBoost;
 
         // Enemies (master gate; per-kind toggles live in the Icons section)
         public readonly ConfigEntry<bool> ShowEnemies;
@@ -102,6 +109,16 @@ namespace OpenMinimap.Config
                 "Show a tiny arrow on icons of objects that are much higher or lower than you.");
             ElevationThreshold = file.Bind("Map", "ElevationThreshold", 5f,
                 "Height difference in meters at which elevation arrows appear.");
+            ShowViewCone = file.Bind("Map", "ShowViewCone", true,
+                "Draw a soft cone on the minimap showing which way your camera is facing.");
+            ShowDistanceRings = file.Bind("Map", "ShowDistanceRings", true,
+                "Draw distance rings around you on the minimap.");
+            DistanceRingSpacing = file.Bind("Map", "DistanceRingSpacing", 25,
+                "Meters between distance rings.");
+            ShowNorthMarker = file.Bind("Map", "ShowNorthMarker", true,
+                "Pin a small N to the rim of the minimap at world north.");
+            ShowStageInfo = file.Bind("Map", "ShowStageInfo", true,
+                "Show the stage name and your distance to the teleporter under the minimap.");
 
             CompassWidth = file.Bind("Compass", "CompassWidth", 480,
                 "Width of the compass strip in pixels.");
@@ -115,6 +132,10 @@ namespace OpenMinimap.Config
                 "Pin markers of off-screen objects to the ends of the compass strip.");
             CompassInvert = file.Bind("Compass", "InvertScrollDirection", false,
                 "Flip which way the compass scrolls when you turn the camera.");
+            CompassDistanceLabels = file.Bind("Compass", "ShowDistanceLabels", true,
+                "Show a faint distance label (e.g. 42m) under each compass marker.");
+            CompassCenterBoost = file.Bind("Compass", "CenterHighlight", true,
+                "Markers near the center of the compass are brighter and slightly larger, fading toward the edges (Skyrim-style).");
 
             ShowEnemies = file.Bind("Enemies", "ShowEnemies", true,
                 "Master switch for hostile enemies (regular, elite and boss). Hides all of them when off.");
@@ -183,6 +204,11 @@ namespace OpenMinimap.Config
             Add(new CheckBoxOption(ClampToEdge, new CheckBoxConfig { category = "Map" }), modGuid, modName);
             Add(new CheckBoxOption(ElevationArrows, new CheckBoxConfig { category = "Map" }), modGuid, modName);
             Add(new SliderOption(ElevationThreshold, new SliderConfig { category = "Map", min = 2f, max = 30f, FormatString = "{0:0} m" }), modGuid, modName);
+            Add(new CheckBoxOption(ShowViewCone, new CheckBoxConfig { category = "Map", name = "View Cone" }), modGuid, modName);
+            Add(new CheckBoxOption(ShowDistanceRings, new CheckBoxConfig { category = "Map", name = "Distance Rings" }), modGuid, modName);
+            Add(new IntSliderOption(DistanceRingSpacing, new IntSliderConfig { category = "Map", min = 10, max = 100, formatString = "{0} m" }), modGuid, modName);
+            Add(new CheckBoxOption(ShowNorthMarker, new CheckBoxConfig { category = "Map", name = "North Marker" }), modGuid, modName);
+            Add(new CheckBoxOption(ShowStageInfo, new CheckBoxConfig { category = "Map", name = "Stage Info Line" }), modGuid, modName);
 
             Add(new IntSliderOption(CompassWidth, new IntSliderConfig { category = "Compass", min = 200, max = 1000, formatString = "{0} px" }), modGuid, modName);
             Add(new IntSliderOption(CompassOffsetY, new IntSliderConfig { category = "Compass", min = -100, max = 400, formatString = "{0} px" }), modGuid, modName);
@@ -190,6 +216,8 @@ namespace OpenMinimap.Config
             Add(new CheckBoxOption(CompassTicks, new CheckBoxConfig { category = "Compass" }), modGuid, modName);
             Add(new CheckBoxOption(CompassClampMarkers, new CheckBoxConfig { category = "Compass" }), modGuid, modName);
             Add(new CheckBoxOption(CompassInvert, new CheckBoxConfig { category = "Compass" }), modGuid, modName);
+            Add(new CheckBoxOption(CompassDistanceLabels, new CheckBoxConfig { category = "Compass", name = "Distance Labels" }), modGuid, modName);
+            Add(new CheckBoxOption(CompassCenterBoost, new CheckBoxConfig { category = "Compass", name = "Center Highlight" }), modGuid, modName);
 
             // Per-kind options in stable enum order: enabled, icon, color, size.
             foreach (MapKind kind in System.Enum.GetValues(typeof(MapKind)))

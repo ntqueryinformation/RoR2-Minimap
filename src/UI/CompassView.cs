@@ -133,7 +133,7 @@ namespace OpenMinimap.UI
         public void CreateIcon(TrackedMarker m)
         {
             if (!_icons.ContainsKey(m.Id))
-                _icons[m.Id] = MarkerIcon.Create(_markerContainer, m);
+                _icons[m.Id] = MarkerIcon.Create(_markerContainer, m, false, true);
         }
 
         public void DestroyIcon(TrackedMarker m)
@@ -194,6 +194,8 @@ namespace OpenMinimap.UI
             }
 
             bool clamp = cfg.CompassClampMarkers.Value;
+            bool boost = cfg.CompassCenterBoost.Value;       // Skyrim-style center emphasis
+            bool showDistance = cfg.CompassDistanceLabels.Value;
             float edgeInset = 12f;
             foreach (var m in MapScanner.Visible)
             {
@@ -225,13 +227,18 @@ namespace OpenMinimap.UI
                     continue;
                 }
 
+                // 1.0 at the center of the strip, 0.0 at the edges.
+                float centerT = 1f - Mathf.Clamp01(Mathf.Abs(d) / halfSpan);
+                float fade = boost ? Mathf.Lerp(0.3f, 1f, centerT) : 1f;
+                float sizeBoost = boost ? Mathf.Lerp(0.85f, 1.1f, centerT) : 1f;
+
                 if (!e.Root.activeSelf)
                     e.Root.SetActive(true);
                 e.Root.transform.localPosition = new Vector3(x, 0f, 0f);
                 e.Root.transform.localRotation = Quaternion.identity;
 
                 var rt = e.Image.rectTransform;
-                float iconSize = cfg.Kinds[m.Kind].Size.Value * cfg.IconScale.Value * (clamped ? 0.85f : 1f);
+                float iconSize = cfg.Kinds[m.Kind].Size.Value * cfg.IconScale.Value * (clamped ? 0.85f : 1f) * sizeBoost;
                 if (!Mathf.Approximately(rt.sizeDelta.x, iconSize))
                     rt.sizeDelta = new Vector2(iconSize, iconSize);
                 if ((Sprite)e.Image.sprite != (Sprite)m.Sprite)
@@ -242,13 +249,43 @@ namespace OpenMinimap.UI
                     c.a = 0.35f;
                 if (clamped)
                     c.a *= 0.55f;
+                c.a *= fade;
                 e.Image.color = c;
 
                 bool showElev = cfg.ElevationArrows.Value && Mathf.Abs(m.YOffset) > cfg.ElevationThreshold.Value;
                 if (e.Elevation.gameObject.activeSelf != showElev)
                     e.Elevation.gameObject.SetActive(showElev);
                 if (showElev)
+                {
                     e.ElevationRect.localRotation = Quaternion.Euler(0f, 0f, m.YOffset > 0f ? -90f : 90f);
+                    Color ec = e.Elevation.color;
+                    float ea = 0.95f * fade;
+                    if (!Mathf.Approximately(ec.a, ea))
+                    {
+                        ec.a = ea;
+                        e.Elevation.color = ec;
+                    }
+                }
+
+                // Faint distance label under the marker (Skyrim-style compass info).
+                if (e.DistanceText != null)
+                {
+                    if (e.DistanceRect.gameObject.activeSelf != showDistance)
+                        e.DistanceRect.gameObject.SetActive(showDistance);
+                    if (showDistance)
+                    {
+                        string text = Mathf.RoundToInt(m.Distance) + "m";
+                        if (e.DistanceText.text != text)
+                            e.DistanceText.text = text;
+                        Color dc = e.DistanceText.color;
+                        float da = 0.6f * fade;
+                        if (!Mathf.Approximately(dc.a, da))
+                        {
+                            dc.a = da;
+                            e.DistanceText.color = dc;
+                        }
+                    }
+                }
             }
         }
     }

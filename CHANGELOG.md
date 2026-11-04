@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.0
+
+- Skyrim-style compass: markers near the center of the strip are brighter and slightly larger, fading toward the edges, and every marker shows a faint distance label underneath (e.g. 42m). Both toggleable.
+- Minimap extras (inspired by OmniMap): camera view cone, distance rings (configurable spacing), a north marker pinned to the rim, and a stage name / teleporter distance line under the window. All toggleable in the Map tab.
+
 ## 1.1.0
 
 - Full per-kind icon customization: every object kind can be switched off and given its own icon (24 to choose from — mostly the game's own icons plus generated Dot/Triangle/Ring), color, and size, all in Risk of Options.

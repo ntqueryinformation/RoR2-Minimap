@@ -2,6 +2,9 @@ using System.Collections.Generic;
 using OpenMinimap.Config;
 using OpenMinimap.Tracking;
 using OpenMinimap.Util;
+using RoR2;
+using RoR2.UI;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -22,6 +25,11 @@ namespace OpenMinimap.UI
         private readonly Image _backdrop;
         private readonly Image _maskImage;
         private readonly Image _border;
+        private readonly RectTransform _coneRect;
+        private readonly List<RectTransform> _rings = new List<RectTransform>(4);
+        private readonly RectTransform _northRect;
+        private readonly RectTransform _stageRect;
+        private readonly HGTextMeshProUGUI _stageLabel;
         private readonly Dictionary<int, MarkerIcon.Instance> _icons = new Dictionary<int, MarkerIcon.Instance>(256);
         private readonly Dictionary<int, RectTransform> _chargeRings = new Dictionary<int, RectTransform>(4);
 
@@ -64,6 +72,38 @@ namespace OpenMinimap.UI
             _container.pivot = new Vector2(0.5f, 0.5f);
             _container.sizeDelta = Vector2.zero;
 
+            // Camera view cone — first child of the container so it renders behind all icons
+            // and charge rings. In RotateWithPlayer mode the container's spin points it at
+            // the camera forward automatically; NorthUp mode rotates it manually per frame.
+            var coneGo = new GameObject("ViewCone", typeof(RectTransform), typeof(Image));
+            coneGo.layer = 5;
+            _coneRect = (RectTransform)coneGo.transform;
+            _coneRect.SetParent(_container, false);
+            _coneRect.anchorMin = new Vector2(0.5f, 0.5f);
+            _coneRect.anchorMax = new Vector2(0.5f, 0.5f);
+            _coneRect.pivot = new Vector2(0.5f, 0.5f);
+            var coneImg = coneGo.GetComponent<Image>();
+            coneImg.sprite = TextureGen.MakeSprite(TextureGen.ConeAlpha(256));
+            coneImg.color = new Color(0.75f, 0.85f, 1f, 0.9f);
+            coneImg.raycastTarget = false;
+
+            for (int i = 0; i < 4; i++)
+            {
+                var ringGo = new GameObject("distance_ring_" + i, typeof(RectTransform), typeof(Image));
+                ringGo.layer = 5;
+                var ringRect = (RectTransform)ringGo.transform;
+                ringRect.SetParent(_container, false);
+                ringRect.anchorMin = new Vector2(0.5f, 0.5f);
+                ringRect.anchorMax = new Vector2(0.5f, 0.5f);
+                ringRect.pivot = new Vector2(0.5f, 0.5f);
+                var ringImg = ringGo.GetComponent<Image>();
+                ringImg.sprite = _circleRingSprite;
+                ringImg.color = new Color(1f, 1f, 1f, 0.16f);
+                ringImg.raycastTarget = false;
+                ringGo.SetActive(false);
+                _rings.Add(ringRect);
+            }
+
             var arrowGo = new GameObject("PlayerArrow", typeof(RectTransform), typeof(Image));
             arrowGo.layer = 5;
             _playerArrow = (RectTransform)arrowGo.transform;
@@ -79,6 +119,37 @@ namespace OpenMinimap.UI
             _playerArrow.localRotation = Quaternion.Euler(0f, 0f, -90f); // the sprite points left; -90° turns it up
 
             _border = AddStretched(_rootRect, "Border", _circleRingSprite, new Color(0.85f, 0.85f, 0.9f, 0.8f));
+
+            var northGo = new GameObject("NorthMarker", typeof(RectTransform));
+            northGo.layer = 5;
+            _northRect = (RectTransform)northGo.transform;
+            _northRect.SetParent(_rootRect, false);
+            _northRect.anchorMin = new Vector2(0.5f, 0.5f);
+            _northRect.anchorMax = new Vector2(0.5f, 0.5f);
+            _northRect.pivot = new Vector2(0.5f, 0.5f);
+            _northRect.sizeDelta = new Vector2(24f, 20f);
+            var northLabel = northGo.AddComponent<HGTextMeshProUGUI>();
+            northLabel.text = "N";
+            northLabel.fontSize = 14f;
+            northLabel.fontStyle = FontStyles.Bold;
+            northLabel.alignment = TextAlignmentOptions.Center;
+            northLabel.raycastTarget = false;
+            northLabel.color = new Color(1f, 0.82f, 0.35f, 0.9f);
+
+            var stageGo = new GameObject("StageInfo", typeof(RectTransform));
+            stageGo.layer = 5;
+            _stageRect = (RectTransform)stageGo.transform;
+            _stageRect.SetParent(_rootRect, false);
+            _stageRect.anchorMin = new Vector2(0.5f, 0f);
+            _stageRect.anchorMax = new Vector2(0.5f, 0f);
+            _stageRect.pivot = new Vector2(0.5f, 1f);
+            _stageRect.sizeDelta = new Vector2(280f, 26f);
+            _stageRect.anchoredPosition = new Vector2(0f, -6f);
+            _stageLabel = stageGo.AddComponent<HGTextMeshProUGUI>();
+            _stageLabel.fontSize = 11f;
+            _stageLabel.alignment = TextAlignmentOptions.Top;
+            _stageLabel.raycastTarget = false;
+            _stageLabel.color = new Color(0.9f, 0.9f, 0.95f, 0.8f);
         }
 
         public void SetVisible(bool visible)
@@ -172,6 +243,70 @@ namespace OpenMinimap.UI
             bool elevEnabled = cfg.ElevationArrows.Value;
             float elevThreshold = cfg.ElevationThreshold.Value;
             Quaternion upright = rotate ? Quaternion.Euler(0f, 0f, -yaw) : Quaternion.identity;
+
+            // Camera view cone.
+            bool cone = cfg.ShowViewCone.Value;
+            _coneRect.gameObject.SetActive(cone);
+            if (cone)
+            {
+                float coneSize = maxR * 1.9f;
+                if (!Mathf.Approximately(_coneRect.sizeDelta.x, coneSize))
+                    _coneRect.sizeDelta = new Vector2(coneSize, coneSize);
+                _coneRect.localPosition = Vector3.zero;
+                _coneRect.localRotation = rotate ? Quaternion.identity : Quaternion.Euler(0f, 0f, -yaw);
+            }
+
+            // Distance rings every N meters (world-scale, so they move when zooming).
+            bool ringsOn = cfg.ShowDistanceRings.Value;
+            float spacing = Mathf.Max(10f, cfg.DistanceRingSpacing.Value);
+            for (int i = 0; i < _rings.Count; i++)
+            {
+                var ring = _rings[i];
+                float ringPx = (i + 1) * spacing * ppm;
+                bool showRing = ringsOn && ringPx <= maxR * 0.98f && ringPx > 4f;
+                if (ring.gameObject.activeSelf != showRing)
+                    ring.gameObject.SetActive(showRing);
+                if (showRing)
+                {
+                    ring.localPosition = Vector3.zero;
+                    float ringSize = ringPx * 2f;
+                    if (!Mathf.Approximately(ring.sizeDelta.x, ringSize))
+                        ring.sizeDelta = new Vector2(ringSize, ringSize);
+                }
+            }
+
+            // North marker pinned to the rim.
+            bool north = cfg.ShowNorthMarker.Value;
+            _northRect.gameObject.SetActive(north);
+            if (north)
+            {
+                Vector2 nPos = rotate
+                    ? new Vector2(-Mathf.Sin(yaw * Mathf.Deg2Rad), Mathf.Cos(yaw * Mathf.Deg2Rad)) * (maxR - 12f)
+                    : new Vector2(0f, maxR - 12f);
+                _northRect.anchoredPosition = nPos;
+            }
+
+            // Stage name + teleporter distance line under the window.
+            bool stageInfo = cfg.ShowStageInfo.Value;
+            _stageRect.gameObject.SetActive(stageInfo);
+            if (stageInfo)
+            {
+                _stageRect.sizeDelta = new Vector2(size, 26f);
+                string text = null;
+                var sceneInfo = SceneInfo.instance;
+                if (sceneInfo && sceneInfo.sceneDef)
+                    text = Language.GetString(sceneInfo.sceneDef.nameToken);
+                foreach (var m in MapScanner.Visible)
+                {
+                    if (m.Kind == MapKind.Teleporter && m.Teleporter != null)
+                    {
+                        text = (string.IsNullOrEmpty(text) ? "" : text + "  ·  ") + "TP " + Mathf.RoundToInt(m.Distance) + "m";
+                        break;
+                    }
+                }
+                if (!string.IsNullOrEmpty(text) && _stageLabel.text != text)
+                    _stageLabel.text = text;
+            }
 
             foreach (var m in MapScanner.Visible)
             {

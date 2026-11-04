@@ -19,9 +19,12 @@ namespace OpenMinimap.UI
             public readonly RectTransform ElevationRect;
             public readonly RectTransform ChargeRect;
             public readonly HGTextMeshProUGUI ChargeText;
+            public readonly RectTransform DistanceRect;
+            public readonly HGTextMeshProUGUI DistanceText;
 
             public Instance(GameObject root, Image image, Image elevation, RectTransform elevationRect,
-                RectTransform chargeRect, HGTextMeshProUGUI chargeText)
+                RectTransform chargeRect, HGTextMeshProUGUI chargeText,
+                RectTransform distanceRect, HGTextMeshProUGUI distanceText)
             {
                 Root = root;
                 Image = image;
@@ -29,10 +32,12 @@ namespace OpenMinimap.UI
                 ElevationRect = elevationRect;
                 ChargeRect = chargeRect;
                 ChargeText = chargeText;
+                DistanceRect = distanceRect;
+                DistanceText = distanceText;
             }
         }
 
-        public static Instance Create(RectTransform parent, TrackedMarker m, bool withChargeLabel = false)
+        public static Instance Create(RectTransform parent, TrackedMarker m, bool withChargeLabel = false, bool withDistanceLabel = false)
         {
             var go = new GameObject("icon_" + m.Kind, typeof(RectTransform), typeof(Image));
             go.layer = 5;
@@ -84,7 +89,29 @@ namespace OpenMinimap.UI
                 charge.SetActive(false);
             }
 
-            return new Instance(go, img, cimg, crt, chargeRect, chargeText);
+            RectTransform distanceRect = null;
+            HGTextMeshProUGUI distanceText = null;
+            if (withDistanceLabel)
+            {
+                var dist = new GameObject("distance", typeof(RectTransform));
+                dist.layer = 5;
+                distanceRect = (RectTransform)dist.transform;
+                distanceRect.SetParent(rt, false);
+                distanceRect.anchorMin = new Vector2(0.5f, 0f);
+                distanceRect.anchorMax = new Vector2(0.5f, 0f);
+                distanceRect.pivot = new Vector2(0.5f, 1f);
+                distanceRect.sizeDelta = new Vector2(70f, 14f);
+                distanceRect.anchoredPosition = new Vector2(0f, -4f);
+                distanceText = dist.AddComponent<HGTextMeshProUGUI>();
+                distanceText.fontSize = 9f;
+                distanceText.alignment = TextAlignmentOptions.Center;
+                distanceText.raycastTarget = false;
+                distanceText.color = new Color(1f, 1f, 1f, 0.55f);
+                distanceText.text = "0m";
+                dist.SetActive(false);
+            }
+
+            return new Instance(go, img, cimg, crt, chargeRect, chargeText, distanceRect, distanceText);
         }
 
         public static void Destroy(ref Instance instance)

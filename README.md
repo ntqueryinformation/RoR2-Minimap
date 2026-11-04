@@ -22,8 +22,8 @@ Chests (regular/timed) · Large chests (red) · Category chests (tier-colored) �
 | Category | Options |
 |---|---|
 | **General** | Enabled, toggle keybind (default `M`), display mode (Minimap / Compass / Both) |
-| **Map** | Shape (circle/square), orientation (rotate with player / north-up), size, offset from corner, zoom (pixels-per-meter), opacity, icon scale, clamp-to-edge, elevation arrows + height threshold |
-| **Compass** | Width, offset from top (negative = higher), intercardinals, degree ticks, clamp markers, invert scroll direction |
+| **Map** | Shape (circle/square), orientation (rotate with player / north-up), size, offset from corner, zoom (pixels-per-meter), opacity, icon scale, clamp-to-edge, elevation arrows + height threshold, view cone, distance rings + spacing, north marker, stage info line |
+| **Compass** | Width, offset from top (negative = higher), intercardinals, degree ticks, clamp markers, invert scroll direction, distance labels, center highlight (Skyrim-style: markers fade and shrink toward the edges) |
 | **Icons** | For each of the 23 object kinds: show toggle, icon choice (24), color picker, size slider |
 | **Enemies** | Master switch for all hostiles |
 
