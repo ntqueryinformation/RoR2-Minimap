@@ -158,6 +158,8 @@ namespace OpenMinimap.UI
             float yaw = cam.eulerAngles.y;
             float pxPerDeg = width / SpanDeg;
             float halfSpan = SpanDeg * 0.5f;
+            // Inverted scrolling flips which way markers and labels travel when you turn.
+            float dir = cfg.CompassInvert.Value ? -1f : 1f;
 
             bool showIntercardinals = cfg.CompassIntercardinals.Value;
             bool showTicks = cfg.CompassTicks.Value;
@@ -167,7 +169,7 @@ namespace OpenMinimap.UI
                 bool active = label.Cardinal || showIntercardinals;
                 if (active)
                 {
-                    float d = Mathf.DeltaAngle(label.Angle, yaw);
+                    float d = dir * Mathf.DeltaAngle(label.Angle, yaw);
                     active = Mathf.Abs(d) <= halfSpan;
                     if (active)
                         label.Rect.anchoredPosition = new Vector2(d * pxPerDeg, 0f);
@@ -182,7 +184,7 @@ namespace OpenMinimap.UI
                 bool active = showTicks;
                 if (active)
                 {
-                    float d = Mathf.DeltaAngle(i * 15f, yaw);
+                    float d = dir * Mathf.DeltaAngle(i * 15f, yaw);
                     active = Mathf.Abs(d) <= halfSpan;
                     if (active)
                         tick.anchoredPosition = new Vector2(d * pxPerDeg, -Height * 0.5f + 3.5f);
@@ -204,7 +206,7 @@ namespace OpenMinimap.UI
                     continue;
                 }
 
-                float d = m.BearingDelta;
+                float d = dir * m.BearingDelta;
                 float x;
                 bool clamped = false;
                 if (Mathf.Abs(d) <= halfSpan)

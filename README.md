@@ -21,7 +21,7 @@ Chests (regular + timed) · Gold chests · Shrines (incl. mountain, Halcyon, Reb
 |---|---|
 | **General** | Enabled, toggle keybind (default `M`), display mode (Minimap / Compass / Both) |
 | **Map** | Shape (circle/square), orientation (rotate with player / north-up), size, offset from corner, zoom (pixels-per-meter), opacity, icon scale, clamp-to-edge, elevation arrows + height threshold |
-| **Compass** | Width, offset from top, intercardinals, degree ticks, clamp markers |
+| **Compass** | Width, offset from top (negative = higher), intercardinals, degree ticks, clamp markers, invert scroll direction |
 | **Icons** | One checkbox per object category (18 total) |
 | **Enemies** | Show enemies, highlight elites/bosses |
 

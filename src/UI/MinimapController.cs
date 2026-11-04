@@ -18,7 +18,15 @@ namespace OpenMinimap.UI
         private void Awake()
         {
             _hud = GetComponent<HUD>();
-            var parent = _hud && _hud.mainUIPanel ? _hud.mainUIPanel.transform : transform;
+            // Parent to the HUD's canvas root, not mainUIPanel — the latter has a built-in
+            // inset that would make every offset configurable only by guesswork.
+            var parent = transform;
+            if (_hud && _hud.mainUIPanel)
+            {
+                var canvas = _hud.mainUIPanel.GetComponentInParent<Canvas>();
+                if (canvas)
+                    parent = canvas.transform;
+            }
             _minimap = new MinimapView(parent);
             _compass = new CompassView(parent);
             MapScanner.MarkerAdded += OnMarkerAdded;
@@ -92,7 +100,8 @@ namespace OpenMinimap.UI
                 m.YOffset = d.y;
                 m.Bearing = Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg;
                 m.BearingDelta = Mathf.DeltaAngle(m.Bearing, yaw);
-                m.Show = Plugin.Config.IsKindVisible(m.Kind);
+                // You are the arrow at the center — don't render your own marker on top of it.
+                m.Show = Plugin.Config.IsKindVisible(m.Kind) && !ReferenceEquals(m.Body, body);
             }
         }
     }

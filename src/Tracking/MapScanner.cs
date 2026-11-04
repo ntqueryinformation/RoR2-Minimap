@@ -185,7 +185,22 @@ namespace OpenMinimap.Tracking
                         var b = tc.GetComponent<CharacterBody>();
                         if (!b)
                             continue;
-                        kind = b.isPlayerControlled ? MapKind.OtherPlayer : MapKind.Minion;
+                        if (b.isPlayerControlled)
+                        {
+                            kind = MapKind.OtherPlayer;
+                        }
+                        else
+                        {
+                            // Only count owned minions (purchased drones/turrets). Ability
+                            // spawns like dash decoys also present player-team bodies, but
+                            // without MinionOwnership they are skipped so they never leave
+                            // ghost icons behind on the map.
+                            var master = b.master;
+                            var ownership = master ? master.GetComponent<MinionOwnership>() : null;
+                            if (!ownership || ownership.ownerMaster == null)
+                                continue;
+                            kind = MapKind.Minion;
+                        }
                         break;
                     }
                     default:

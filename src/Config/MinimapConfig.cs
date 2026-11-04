@@ -53,6 +53,7 @@ namespace OpenMinimap.Config
         public readonly ConfigEntry<bool> CompassIntercardinals;
         public readonly ConfigEntry<bool> CompassTicks;
         public readonly ConfigEntry<bool> CompassClampMarkers;
+        public readonly ConfigEntry<bool> CompassInvert;
 
         // Icons (per-kind visibility)
         public readonly ConfigEntry<bool> ShowChests;
@@ -94,7 +95,7 @@ namespace OpenMinimap.Config
                 "Size of the minimap window in pixels.");
             MapOffsetX = file.Bind("Map", "OffsetFromRight", 40,
                 "Distance in pixels between the minimap and the right edge of the screen.");
-            MapOffsetY = file.Bind("Map", "OffsetFromTop", 305,
+            MapOffsetY = file.Bind("Map", "OffsetFromTop", 330,
                 "Distance in pixels between the minimap and the top edge of the screen. The default clears the vanilla objective panel.");
             Zoom = file.Bind("Map", "Zoom", 4f,
                 "Zoom level in pixels per meter. Higher values zoom in.");
@@ -112,13 +113,15 @@ namespace OpenMinimap.Config
             CompassWidth = file.Bind("Compass", "CompassWidth", 480,
                 "Width of the compass strip in pixels.");
             CompassOffsetY = file.Bind("Compass", "CompassOffsetFromTop", 24,
-                "Distance in pixels between the compass and the top edge of the screen.");
+                "Distance in pixels between the compass and the top edge of the screen. Negative values move it further up.");
             CompassIntercardinals = file.Bind("Compass", "ShowIntercardinals", true,
                 "Also show NE, SE, SW and NW on the compass.");
             CompassTicks = file.Bind("Compass", "ShowDegreeTicks", true,
                 "Show a small tick mark every 15 degrees.");
             CompassClampMarkers = file.Bind("Compass", "ClampMarkers", true,
                 "Pin markers of off-screen objects to the ends of the compass strip.");
+            CompassInvert = file.Bind("Compass", "InvertScrollDirection", false,
+                "Flip which way the compass scrolls when you turn the camera.");
 
             ShowChests = file.Bind("Icons", "ShowChests", true, "Show regular and timed chests.");
             ShowGoldChests = file.Bind("Icons", "ShowGoldChests", true, "Show large (legendary) chests.");
@@ -208,10 +211,11 @@ namespace OpenMinimap.Config
             Add(new SliderOption(ElevationThreshold, new SliderConfig { category = "Map", min = 2f, max = 30f, FormatString = "{0:0} m" }), modGuid, modName);
 
             Add(new IntSliderOption(CompassWidth, new IntSliderConfig { category = "Compass", min = 200, max = 1000, formatString = "{0} px" }), modGuid, modName);
-            Add(new IntSliderOption(CompassOffsetY, new IntSliderConfig { category = "Compass", min = 4, max = 400, formatString = "{0} px" }), modGuid, modName);
+            Add(new IntSliderOption(CompassOffsetY, new IntSliderConfig { category = "Compass", min = -100, max = 400, formatString = "{0} px" }), modGuid, modName);
             Add(new CheckBoxOption(CompassIntercardinals, new CheckBoxConfig { category = "Compass" }), modGuid, modName);
             Add(new CheckBoxOption(CompassTicks, new CheckBoxConfig { category = "Compass" }), modGuid, modName);
             Add(new CheckBoxOption(CompassClampMarkers, new CheckBoxConfig { category = "Compass" }), modGuid, modName);
+            Add(new CheckBoxOption(CompassInvert, new CheckBoxConfig { category = "Compass" }), modGuid, modName);
 
             Add(new CheckBoxOption(ShowChests, new CheckBoxConfig { category = "Icons" }), modGuid, modName);
             Add(new CheckBoxOption(ShowGoldChests, new CheckBoxConfig { category = "Icons" }), modGuid, modName);
