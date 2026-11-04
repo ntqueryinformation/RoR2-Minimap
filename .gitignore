@@ -1,0 +1,6 @@
+bin/
+obj/
+Release/
+.cache/
+*.user
+.zcode/

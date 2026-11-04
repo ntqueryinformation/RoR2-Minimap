@@ -1,0 +1,62 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>OpenMinimap</RootNamespace>
+    <AssemblyName>OpenMinimap</AssemblyName>
+    <Version>1.0.0</Version>
+    <Nullable>disable</Nullable>
+    <NoWarn>$(NoWarn);NU1701;CS0436;CS0618</NoWarn>
+
+    <!-- Steam install of Risk of Rain 2. Override with -p:GameDir="C:\..." on other machines. -->
+    <GameDir Condition="'$(GameDir)' == ''">D:\SteamLibrary\steamapps\common\Risk of Rain 2</GameDir>
+    <ManagedDir>$(GameDir)\Risk of Rain 2_Data\Managed</ManagedDir>
+
+    <!-- r2modman profile that carries RiskOfOptions.dll. Override with -p:ProfilePluginsDir="..." -->
+    <ProfilePluginsDir Condition="'$(ProfilePluginsDir)' == ''">$(APPDATA)\r2modmanPlus-local\RiskOfRain2\profiles\lookingglass\BepInEx\plugins</ProfilePluginsDir>
+    <RiskOfOptionsDll>$(ProfilePluginsDir)\Rune580-Risk_Of_Options\RiskOfOptions\RiskOfOptions.dll</RiskOfOptionsDll>
+
+    <ReleaseDir>$(MSBuildThisFileDirectory)..\Release\</ReleaseDir>
+    <PackageDir>$(ReleaseDir)plugins\OpenMinimap\</PackageDir>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <RestoreAdditionalProjectSources>
+      https://api.nuget.org/v3/index.json;
+      https://nuget.bepinex.dev/v3/index.json
+    </RestoreAdditionalProjectSources>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BepInEx.Analyzers" Version="1.0.*" PrivateAssets="all" />
+    <PackageReference Include="BepInEx.Core" Version="5.4.21" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="RoR2"><HintPath>$(ManagedDir)\RoR2.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="HGCSharpUtils"><HintPath>$(ManagedDir)\HGCSharpUtils.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="LegacyResourcesAPI"><HintPath>$(ManagedDir)\LegacyResourcesAPI.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="com.unity.multiplayer-hlapi.Runtime"><HintPath>$(ManagedDir)\com.unity.multiplayer-hlapi.Runtime.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine"><HintPath>$(ManagedDir)\UnityEngine.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>$(ManagedDir)\UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.UIModule"><HintPath>$(ManagedDir)\UnityEngine.UIModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.UI"><HintPath>$(ManagedDir)\UnityEngine.UI.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.InputLegacyModule"><HintPath>$(ManagedDir)\UnityEngine.InputLegacyModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Unity.TextMeshPro"><HintPath>$(ManagedDir)\Unity.TextMeshPro.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="RiskOfOptions"><HintPath>$(RiskOfOptionsDll)</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+
+  <!-- Assemble a Thunderstore-ready folder: manifest/icon/README at the zip root, DLL under plugins/. -->
+  <Target Name="PackageThunderstore" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
+    <MakeDir Directories="$(PackageDir)" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(PackageDir)" />
+    <Copy SourceFiles="$(MSBuildThisFileDirectory)..\Thunderstore\manifest.json" DestinationFolder="$(ReleaseDir)" />
+    <Copy SourceFiles="$(MSBuildThisFileDirectory)..\Thunderstore\icon.png" DestinationFolder="$(ReleaseDir)" />
+    <Copy SourceFiles="$(MSBuildThisFileDirectory)..\README.md" DestinationFolder="$(ReleaseDir)" />
+    <Copy SourceFiles="$(MSBuildThisFileDirectory)..\preview.png" DestinationFolder="$(ReleaseDir)" ContinueOnError="true" />
+    <Copy SourceFiles="$(MSBuildThisFileDirectory)..\CHANGELOG.md" DestinationFolder="$(ReleaseDir)" ContinueOnError="true" />
+    <Message Importance="high" Text="Thunderstore package folder ready: $(ReleaseDir)" />
+  </Target>
+
+</Project>
