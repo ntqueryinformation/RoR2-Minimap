@@ -23,6 +23,7 @@ namespace OpenMinimap.UI
         private readonly Image _maskImage;
         private readonly Image _border;
         private readonly Dictionary<int, MarkerIcon.Instance> _icons = new Dictionary<int, MarkerIcon.Instance>(256);
+        private readonly Dictionary<int, RectTransform> _chargeRings = new Dictionary<int, RectTransform>(4);
 
         private static Sprite _circleSprite;
         private static Sprite _circleRingSprite;
@@ -88,8 +89,27 @@ namespace OpenMinimap.UI
 
         public void CreateIcon(TrackedMarker m)
         {
-            if (!_icons.ContainsKey(m.Id))
-                _icons[m.Id] = MarkerIcon.Create(_container, m);
+            bool teleporter = m.Kind == MapKind.Teleporter;
+            _icons[m.Id] = MarkerIcon.Create(_container, m, teleporter);
+            if (teleporter)
+                _chargeRings[m.Id] = MakeChargeRing();
+        }
+
+        private RectTransform MakeChargeRing()
+        {
+            var go = new GameObject("charge_radius", typeof(RectTransform), typeof(Image));
+            go.layer = 5;
+            var rt = (RectTransform)go.transform;
+            rt.SetParent(_container, false);
+            rt.anchorMin = new Vector2(0.5f, 0.5f);
+            rt.anchorMax = new Vector2(0.5f, 0.5f);
+            rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.localRotation = Quaternion.identity;
+            var img = go.GetComponent<Image>();
+            img.sprite = _circleRingSprite;
+            img.raycastTarget = false;
+            go.SetActive(false);
+            return rt;
         }
 
         public void DestroyIcon(TrackedMarker m)
@@ -99,6 +119,12 @@ namespace OpenMinimap.UI
                 var inst = entry;
                 MarkerIcon.Destroy(ref inst);
                 _icons.Remove(m.Id);
+            }
+            if (_chargeRings.TryGetValue(m.Id, out var ring))
+            {
+                if (ring)
+                    Object.Destroy(ring.gameObject);
+                _chargeRings.Remove(m.Id);
             }
         }
 
@@ -179,13 +205,13 @@ namespace OpenMinimap.UI
                 e.Root.transform.localRotation = upright;
 
                 var rt = e.Image.rectTransform;
-                float iconSize = IconLibrary.SizeFor(m.Kind) * iconScale * (clamped ? 0.85f : 1f);
+                float iconSize = cfg.Kinds[m.Kind].Size.Value * iconScale * (clamped ? 0.85f : 1f);
                 if (!Mathf.Approximately(rt.sizeDelta.x, iconSize))
                     rt.sizeDelta = new Vector2(iconSize, iconSize);
                 if ((Sprite)e.Image.sprite != (Sprite)m.Sprite)
                     e.Image.sprite = m.Sprite;
 
-                Color c = IconLibrary.GetColor(m);
+                Color c = IconLibrary.GetColor(m, cfg.Kinds[m.Kind].Color.Value);
                 if (m.Purchase != null && !m.Purchase.available)
                     c.a = 0.35f; // opened/purchased interactables fade instead of disappearing
                 e.Image.color = c;
@@ -197,6 +223,44 @@ namespace OpenMinimap.UI
                 {
                     // the chevron sprite points left: -90° up, +90° down
                     e.ElevationRect.localRotation = Quaternion.Euler(0f, 0f, m.YOffset > 0f ? -90f : 90f);
+                }
+
+                // Teleporter extras: holdout-zone radius ring and charge percentage.
+                bool isTeleporter = m.Kind == MapKind.Teleporter && m.Teleporter != null;
+                bool inRange = !clamped;
+                if (_chargeRings.TryGetValue(m.Id, out var ring))
+                {
+                    float radius = isTeleporter && m.Teleporter.holdoutZoneController
+                        ? m.Teleporter.holdoutZoneController.currentRadius
+                        : 0f;
+                    bool showRing = isTeleporter && inRange && radius > 1f && ppm * radius * 2f <= size * 3f;
+                    if (ring.gameObject.activeSelf != showRing)
+                        ring.gameObject.SetActive(showRing);
+                    if (showRing)
+                    {
+                        ring.localPosition = pos;
+                        float ringSize = radius * 2f * ppm;
+                        if (!Mathf.Approximately(ring.sizeDelta.x, ringSize))
+                            ring.sizeDelta = new Vector2(ringSize, ringSize);
+                        var ringImg = ring.GetComponent<Image>();
+                        Color rc = c;
+                        rc.a = 0.3f;
+                        if (ringImg.color != rc)
+                            ringImg.color = rc;
+                    }
+                }
+                if (e.ChargeText != null)
+                {
+                    bool charging = isTeleporter && inRange && m.Teleporter.isCharging;
+                    if (e.ChargeRect.gameObject.activeSelf != charging)
+                        e.ChargeRect.gameObject.SetActive(charging);
+                    if (charging)
+                    {
+                        int pct = Mathf.RoundToInt(Mathf.Clamp01(m.Teleporter.chargeFraction) * 100f);
+                        string text = pct + "%";
+                        if (e.ChargeText.text != text)
+                            e.ChargeText.text = text;
+                    }
                 }
             }
         }

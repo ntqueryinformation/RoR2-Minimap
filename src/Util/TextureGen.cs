@@ -66,6 +66,30 @@ namespace OpenMinimap.Util
             return Bake(size, (x, y) => Color.white);
         }
 
+        // Solid triangle pointing up (used as a selectable marker shape).
+        public static Texture2D TriangleAlpha(int size)
+        {
+            Vector2 apex = new Vector2(size * 0.5f, size * 0.92f);
+            Vector2 left = new Vector2(size * 0.08f, size * 0.1f);
+            Vector2 right = new Vector2(size * 0.92f, size * 0.1f);
+            return Bake(size, (x, y) =>
+            {
+                var p = new Vector2(x + 0.5f, y + 0.5f);
+                float d1 = Sign(p, apex, left);
+                float d2 = Sign(p, left, right);
+                float d3 = Sign(p, right, apex);
+                bool inside = d1 >= 0 && d2 >= 0 && d3 >= 0;
+                float edge = Mathf.Min(Mathf.Min(Mathf.Abs(d1), Mathf.Abs(d2)), Mathf.Abs(d3));
+                float a = inside ? Mathf.Clamp01(edge + 0.5f) : 0f;
+                return new Color(1f, 1f, 1f, a);
+            });
+        }
+
+        private static float Sign(Vector2 p, Vector2 a, Vector2 b)
+        {
+            return (b.x - a.x) * (p.y - a.y) - (a.y - b.y) * (p.x - a.x);
+        }
+
         public static Sprite MakeSprite(Texture2D tex)
         {
             return Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f));

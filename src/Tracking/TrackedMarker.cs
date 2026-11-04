@@ -19,12 +19,13 @@ namespace OpenMinimap.Tracking
         public TeleporterInteraction Teleporter;
         public GenericPickupController Pickup;
         public CharacterBody Body;
-        public bool IsBoss;
-        public bool IsElite;
-        public bool Gold;   // gold-chest / mountain-shrine style tint
         public bool Hidden; // opened barrels and the like are dropped from the visible list entirely
 
         public bool Show; // per-frame result of the per-kind config toggles
+
+        // Dynamic tint applied on top of the kind's configured color (multishop tier,
+        // category chest, teleporter charge state). Color.clear means "no tint".
+        public Color TintColor = Color.clear;
 
         // Relative to the viewing player:
         public Vector2 Delta;      // world (x, z) offset
@@ -34,6 +35,6 @@ namespace OpenMinimap.Tracking
         public float BearingDelta; // bearing relative to the camera yaw
         public bool Available = true;
 
-        public Sprite Sprite; // resolved once at creation (pickup icons vary per object)
+        public Sprite Sprite; // re-resolved every frame by the controller (cheap lookups)
     }
 }

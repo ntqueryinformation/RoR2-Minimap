@@ -43,7 +43,7 @@ namespace OpenMinimap.UI
 
         private void OnMarkerAdded(TrackedMarker m)
         {
-            IconLibrary.ResolveSprite(m);
+            m.Sprite = IconLibrary.ResolveSprite(m, Plugin.Config.Kinds[m.Kind].Icon.Value);
             _minimap.CreateIcon(m);
             _compass.CreateIcon(m);
         }
@@ -85,6 +85,7 @@ namespace OpenMinimap.UI
 
         private void ComputeFrameData(Transform cam, CharacterBody body)
         {
+            var cfg = Plugin.Config;
             float yaw = cam.eulerAngles.y;
             Vector3 origin = body.transform.position;
             foreach (var m in MapScanner.Visible)
@@ -100,8 +101,11 @@ namespace OpenMinimap.UI
                 m.YOffset = d.y;
                 m.Bearing = Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg;
                 m.BearingDelta = Mathf.DeltaAngle(m.Bearing, yaw);
+                // Re-resolve every frame: kind upgrades (enemy → elite → boss portrait) and
+                // pickup icons must follow immediately, and the lookup is a cheap dictionary hit.
+                m.Sprite = IconLibrary.ResolveSprite(m, cfg.Kinds[m.Kind].Icon.Value);
                 // You are the arrow at the center — don't render your own marker on top of it.
-                m.Show = Plugin.Config.IsKindVisible(m.Kind) && !ReferenceEquals(m.Body, body);
+                m.Show = cfg.IsKindVisible(m.Kind) && !ReferenceEquals(m.Body, body);
             }
         }
     }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using RoR2;
 using UnityEngine;
 
@@ -9,7 +10,7 @@ namespace OpenMinimap.Tracking
     // (ChestBehavior, ShrineBehavior base class, SummonMasterBehavior, ...), then refined by
     // PurchaseInteraction context/display tokens and finally by GameObject name hints — so
     // new DLC content is either classified correctly or at least stays visible under "Other".
-    // Rescans are throttled; per-frame work is only availability/elite refresh and pruning.
+    // Rescans are throttled; per-frame work is only availability/tint refresh and pruning.
     public static class MapScanner
     {
         private const float RescanInterval = 2f;
@@ -19,6 +20,7 @@ namespace OpenMinimap.Tracking
         private static readonly Dictionary<int, TrackedMarker> Markers = new Dictionary<int, TrackedMarker>(256);
         private static readonly List<TrackedMarker> VisibleList = new List<TrackedMarker>(256);
         private static readonly List<TrackedMarker> StaleBuffer = new List<TrackedMarker>(32);
+        private static readonly Dictionary<Type, MemberInfo[]> PickupIndexMembers = new Dictionary<Type, MemberInfo[]>(64);
         private static float _nextRescan;
         private static float _eventRescanAt = float.MaxValue;
         private static bool _scannedOnce;
@@ -116,12 +118,14 @@ namespace OpenMinimap.Tracking
                 if (!pi)
                     continue;
                 seen.Add(pi.GetInstanceID());
-                var kind = Classify(pi, out bool gold);
+                var kind = Classify(pi, out bool tinted);
                 var m = GetOrCreate(pi.GetInstanceID(), pi, kind);
                 m.Purchase = pi;
-                m.Gold = gold;
+                m.TintColor = Color.clear;
                 if (kind == MapKind.Barrel)
                     m.Barrel = pi.GetComponent<BarrelInteraction>();
+                if (tinted)
+                    m.TintColor = TintFor(pi);
             }
         }
 
@@ -157,6 +161,10 @@ namespace OpenMinimap.Tracking
             {
                 if (!gpc)
                     continue;
+                // Skip drops whose content hasn't been assigned yet — they'd otherwise
+                // fall back to a generic icon and look like misc loot.
+                if (!gpc.pickupIndex.isValid || gpc.pickupIndex == PickupIndex.none)
+                    continue;
                 seen.Add(gpc.GetInstanceID());
                 var m = GetOrCreate(gpc.GetInstanceID(), gpc, MapKind.GroundItem);
                 m.Pickup = gpc;
@@ -178,7 +186,8 @@ namespace OpenMinimap.Tracking
                     case TeamIndex.Void:
                         if (enemies >= MaxEnemyMarkers)
                             continue;
-                        kind = MapKind.Enemy;
+                        var enemyBody = tc.GetComponent<CharacterBody>();
+                        kind = ClassifyEnemy(enemyBody);
                         break;
                     case TeamIndex.Player:
                     {
@@ -208,12 +217,24 @@ namespace OpenMinimap.Tracking
                 }
                 seen.Add(tc.GetInstanceID());
                 var m = GetOrCreate(tc.GetInstanceID(), tc, kind);
-                if (kind == MapKind.Enemy)
+                if (IsEnemyKind(kind))
                     enemies++;
                 m.Body = tc.GetComponent<CharacterBody>();
-                m.IsBoss = m.Body && m.Body.isBoss;
-                m.IsElite = m.Body && m.Body.isElite;
             }
+        }
+
+        private static bool IsEnemyKind(MapKind kind)
+        {
+            return kind == MapKind.Enemy || kind == MapKind.EnemyElite || kind == MapKind.EnemyBoss;
+        }
+
+        private static MapKind ClassifyEnemy(CharacterBody body)
+        {
+            if (body && body.isBoss)
+                return MapKind.EnemyBoss;
+            if (body && body.isElite)
+                return MapKind.EnemyElite;
+            return MapKind.Enemy;
         }
 
         private static void Refresh()
@@ -231,11 +252,16 @@ namespace OpenMinimap.Tracking
                     m.Hidden = true;
                 if (m.Purchase != null)
                     m.Available = m.Purchase.available;
-                if (m.Body != null)
+                if (m.Body != null && IsEnemyKind(m.Kind))
                 {
-                    m.IsBoss = m.Body.isBoss;
-                    m.IsElite = m.Body.isElite;
+                    // Elites/bosses change mid-fight — keep their kind in sync so their
+                    // icons (portrait) and colors follow.
+                    var wanted = ClassifyEnemy(m.Body);
+                    if (wanted != m.Kind)
+                        m.Kind = wanted;
                 }
+                if (m.Teleporter != null)
+                    m.TintColor = IconLibrary.GetTeleporterTint(m.Teleporter);
                 if (!m.Hidden)
                     VisibleList.Add(m);
             }
@@ -254,15 +280,24 @@ namespace OpenMinimap.Tracking
                     token.IndexOf("TOTEM", StringComparison.OrdinalIgnoreCase) >= 0);
         }
 
-        private static MapKind Classify(PurchaseInteraction pi, out bool gold)
+        private static MapKind Classify(PurchaseInteraction pi, out bool tinted)
         {
-            gold = false;
+            tinted = false;
             GameObject go = pi.gameObject;
             StringComparison ig = StringComparison.OrdinalIgnoreCase;
 
             var barrel = pi.GetComponent<BarrelInteraction>();
             if (barrel != null)
+            {
+                string bt = pi.contextToken;
+                if ((!string.IsNullOrEmpty(bt) && bt.IndexOf("EQUIPMENTBARREL", ig) >= 0) ||
+                    go.name.IndexOf("EquipmentBarrel", ig) >= 0)
+                {
+                    tinted = false; // equipment barrels are orange via their default kind color
+                    return MapKind.EquipmentBarrel;
+                }
                 return MapKind.Barrel;
+            }
 
             // Command cubes and void potentials — before the plain chest check,
             // since OptionChestBehavior derives from ChestBehavior.
@@ -272,9 +307,11 @@ namespace OpenMinimap.Tracking
             if (pi.GetComponent<ChestBehavior>())
             {
                 if (go.name.IndexOf("GoldChest", ig) >= 0)
-                {
-                    gold = true;
                     return MapKind.GoldChest;
+                if (go.name.IndexOf("CategoryChest", ig) >= 0)
+                {
+                    tinted = true; // damage/healing/utility tier color
+                    return MapKind.CategoryChest;
                 }
                 return MapKind.Chest;
             }
@@ -283,15 +320,10 @@ namespace OpenMinimap.Tracking
             // SotS specials that don't derive from it.
             if (pi.GetComponent<ShrineBehavior>())
             {
-                if (pi.GetComponent<ShrineBossBehavior>())
-                    gold = true;
                 return MapKind.Shrine;
             }
             if (pi.GetComponent<HalcyoniteShrineInteractable>())
-            {
-                gold = true;
                 return MapKind.Shrine;
-            }
             if (pi.GetComponent<ShrineRebirthController>())
                 return MapKind.Shrine;
             if (pi.GetComponent<GeodeController>())
@@ -302,35 +334,99 @@ namespace OpenMinimap.Tracking
                 return MapKind.NewtAltar;
 
             if (pi.GetComponent<SummonMasterBehavior>())
-                return MapKind.Drone;
+                return go.name.IndexOf("Broken", ig) >= 0 ? MapKind.DroneBroken : MapKind.Drone;
             if (pi.GetComponent<ScrapperController>())
                 return MapKind.Scrapper;
             if (pi.isGoldShrine)
-            {
-                gold = true;
                 return MapKind.Shrine;
-            }
 
             string token = pi.contextToken;
             if (!string.IsNullOrEmpty(token))
             {
                 if (token.IndexOf("DUPLICATOR", ig) >= 0) return MapKind.Printer;
-                if (token.IndexOf("TERMINAL", ig) >= 0) return MapKind.Multishop;
+                if (token.IndexOf("TERMINAL", ig) >= 0)
+                {
+                    tinted = true; // tint by the item tier actually on offer
+                    return MapKind.Multishop;
+                }
                 if (IsPortalToken(token)) return MapKind.Portal;
             }
 
             // Name hints last — they catch DLC content with new components but familiar names.
             string n = go.name;
-            if (n.IndexOf("Duplicator", ig) >= 0 || n.IndexOf("Printer", ig) >= 0) return MapKind.Printer;
-            if (n.IndexOf("Multishop", ig) >= 0 || n.IndexOf("ShopTerminal", ig) >= 0) return MapKind.Multishop;
+            if (n.IndexOf("Duplicator", ig) >= 0 || n.IndexOf("Printer", ig) >= 0 || n.IndexOf("Cauldron", ig) >= 0) return MapKind.Printer;
+            if (n.IndexOf("Multishop", ig) >= 0 || n.IndexOf("ShopTerminal", ig) >= 0)
+            {
+                tinted = true;
+                return MapKind.Multishop;
+            }
             if (n.IndexOf("Shrine", ig) >= 0) return MapKind.Shrine;
             if (n.IndexOf("Scrapper", ig) >= 0) return MapKind.Scrapper;
             if (n.IndexOf("Potential", ig) >= 0) return MapKind.VoidPotential;
             if (n.IndexOf("CommandCube", ig) >= 0) return MapKind.CommandCube;
             if (IsPortalToken(n)) return MapKind.Portal;
+            if (n.IndexOf("Broken", ig) >= 0) return MapKind.DroneBroken;
             if (n.IndexOf("Drone", ig) >= 0) return MapKind.Drone;
 
             return MapKind.Other;
+        }
+
+        // Dynamic tint for markers classified as tier-dependent (category chests, multishops).
+        private static Color32 TintFor(PurchaseInteraction pi)
+        {
+            string n = pi.gameObject.name;
+            StringComparison ig = StringComparison.OrdinalIgnoreCase;
+            if (n.IndexOf("Damage", ig) >= 0) return new Color32(255, 64, 64, 255);
+            if (n.IndexOf("Healing", ig) >= 0) return new Color32(96, 255, 128, 255);
+            if (n.IndexOf("Utility", ig) >= 0) return new Color32(96, 176, 255, 255);
+
+            // Multishops: find the item actually on offer. Vanilla hides the pickup index in
+            // private fields synced over the network, so sweep component members reflectively
+            // (cached per type). This also survives DLC shop variants.
+            var pickupIndex = ReadPickupIndex(pi.gameObject);
+            if (pickupIndex.isValid)
+            {
+                var def = PickupCatalog.GetPickupDef(pickupIndex);
+                if (def != null && def.baseColor != default)
+                    return def.baseColor;
+            }
+            return Color.clear;
+        }
+
+        private static PickupIndex ReadPickupIndex(GameObject go)
+        {
+            const BindingFlags Flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
+            foreach (var mb in go.GetComponents<MonoBehaviour>())
+            {
+                if (!mb)
+                    continue;
+                var type = mb.GetType();
+                if (!PickupIndexMembers.TryGetValue(type, out var members))
+                {
+                    var found = new List<MemberInfo>(4);
+                    foreach (var f in type.GetFields(Flags))
+                        if (f.FieldType == typeof(PickupIndex))
+                            found.Add(f);
+                    foreach (var p in type.GetProperties(Flags))
+                        if (p.PropertyType == typeof(PickupIndex) && p.CanRead && p.GetIndexParameters().Length == 0)
+                            found.Add(p);
+                    members = found.ToArray();
+                    PickupIndexMembers[type] = members;
+                }
+                foreach (var member in members)
+                {
+                    try
+                    {
+                        var value = member is FieldInfo field
+                            ? (PickupIndex)field.GetValue(mb)
+                            : (PickupIndex)((PropertyInfo)member).GetValue(mb);
+                        if (value.isValid)
+                            return value;
+                    }
+                    catch (System.Exception) { /* skip members that fail to read */ }
+                }
+            }
+            return PickupIndex.none;
         }
     }
 }

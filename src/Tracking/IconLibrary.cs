@@ -4,137 +4,229 @@ using UnityEngine;
 
 namespace OpenMinimap.Tracking
 {
-    // Loads the game's own sprites (the same MiscIcons set the vanilla ping system uses)
-    // through LegacyResourcesAPI, with a cache. Unknown objects fall back to the game's
-    // own ping-icon resolver, so new DLC content always gets a sensible icon.
+    // Icon source for the map. Every kind has a configurable icon (one of the MapIcon
+    // choices — mostly the game's own MiscIcons set — plus generated Dot/Triangle/Ring),
+    // color and size, with dynamic tints layered on top (multishop tier, category chest,
+    // teleporter charge state, real pickup icons for dropped items, boss portraits).
     public static class IconLibrary
     {
         private const string MysteryIcon = "Textures/MiscIcons/texMysteryIcon";
         private const string ElevationIcon = "Textures/MiscIcons/texOptionsArrowLeft";
 
         private static readonly Dictionary<string, Sprite> Cache = new Dictionary<string, Sprite>();
+        private static readonly Dictionary<int, Sprite> PortraitCache = new Dictionary<int, Sprite>();
         private static readonly HashSet<string> Warned = new HashSet<string>();
+        private static Sprite _dotSprite;
+        private static Sprite _triangleSprite;
+        private static Sprite _ringSprite;
 
         public static Sprite ElevationChevron => Load(ElevationIcon);
 
-        public static string PathFor(MapKind kind)
+        private static string IconPath(MapIcon icon)
         {
-            switch (kind)
+            switch (icon)
             {
-                case MapKind.Chest:
-                case MapKind.GoldChest:
-                case MapKind.Multishop:
-                    return "Textures/MiscIcons/texInventoryIconOutlined";
-                case MapKind.Shrine: return "Textures/MiscIcons/texShrineIconOutlined";
-                case MapKind.NewtAltar: return "Textures/MiscIcons/texLunarPillarIcon";
-                case MapKind.Drone:
-                case MapKind.Minion:
-                    return "Textures/MiscIcons/texDroneIconOutlined";
-                case MapKind.Scrapper: return "Textures/MiscIcons/texWIPIcon";
-                case MapKind.Printer: return "Textures/MiscIcons/texEditIcon";
-                case MapKind.Barrel: return "Textures/MiscIcons/texBarrelIcon";
-                case MapKind.Teleporter: return "Textures/MiscIcons/texTeleporterIconOutlined";
-                case MapKind.Portal: return "Textures/MiscIcons/texQuickplay";
-                case MapKind.VoidPotential:
-                case MapKind.CommandCube:
-                case MapKind.GroundItem:
-                    return "Textures/MiscIcons/texLootIconOutlined";
-                case MapKind.Enemy: return "Textures/MiscIcons/texAttackIcon";
-                case MapKind.OtherPlayer: return "Textures/MiscIcons/texSprintIcon";
-                default: return MysteryIcon;
+                case MapIcon.ChestOutlined: return "Textures/MiscIcons/texInventoryIconOutlined";
+                case MapIcon.Chest: return "Textures/MiscIcons/texInventoryIcon";
+                case MapIcon.Shrine: return "Textures/MiscIcons/texShrineIconOutlined";
+                case MapIcon.Teleporter: return "Textures/MiscIcons/texTeleporterIconOutlined";
+                case MapIcon.TeleporterAlt: return "Textures/MiscIcons/texTeleporterIcon";
+                case MapIcon.Drone: return "Textures/MiscIcons/texDroneIconOutlined";
+                case MapIcon.Barrel: return "Textures/MiscIcons/texBarrelIcon";
+                case MapIcon.Loot: return "Textures/MiscIcons/texLootIconOutlined";
+                case MapIcon.Mystery: return MysteryIcon;
+                case MapIcon.WIP: return "Textures/MiscIcons/texWIPIcon";
+                case MapIcon.Attack: return "Textures/MiscIcons/texAttackIcon";
+                case MapIcon.Sprint: return "Textures/MiscIcons/texSprintIcon";
+                case MapIcon.Quickplay: return "Textures/MiscIcons/texQuickplay";
+                case MapIcon.LunarPillar: return "Textures/MiscIcons/texLunarPillarIcon";
+                case MapIcon.Edit: return "Textures/MiscIcons/texEditIcon";
+                case MapIcon.RescueShip: return "Textures/MiscIcons/texRescueshipIcon";
+                case MapIcon.Hurt: return "Textures/MiscIcons/texCriticallyHurtIcon";
+                case MapIcon.Unlock: return "Textures/MiscIcons/texUnlockIcon";
+                case MapIcon.Arrow: return "Textures/MiscIcons/texOptionsArrowLeft";
+                case MapIcon.Randomize: return "Textures/MiscIcons/texRandomizeIcon";
+                case MapIcon.RandomMap: return "Textures/MiscIcons/texRuleMapIsRandom";
+                default: return null; // generated shapes
             }
         }
 
         public static Sprite Load(string path)
         {
+            if (path == null)
+                return null;
             if (Cache.TryGetValue(path, out var cached))
                 return cached;
             Sprite sprite = null;
             try { sprite = LegacyResourcesAPI.Load<Sprite>(path); }
             catch (System.Exception) { /* treat as missing */ }
             if (sprite == null && Warned.Add(path))
-                Plugin.Log.LogWarning($"Sprite not found: '{path}' (the game may have moved it; falling back to the ping icon).");
+                Plugin.Log.LogWarning($"Sprite not found: '{path}'.");
             Cache[path] = sprite; // cache misses too, to avoid repeated lookups
             return sprite;
         }
 
-        public static void ResolveSprite(TrackedMarker m)
+        public static Sprite GetSprite(MapIcon icon)
         {
-            Sprite sprite = null;
-            if (m.Kind == MapKind.GroundItem && m.Pickup != null)
+            switch (icon)
+            {
+                case MapIcon.Dot:
+                    if (_dotSprite == null)
+                        _dotSprite = Util.TextureGen.MakeSprite(Util.TextureGen.CircleAlpha(64));
+                    return _dotSprite;
+                case MapIcon.Triangle:
+                    if (_triangleSprite == null)
+                        _triangleSprite = Util.TextureGen.MakeSprite(Util.TextureGen.TriangleAlpha(64));
+                    return _triangleSprite;
+                case MapIcon.Ring:
+                    if (_ringSprite == null)
+                        _ringSprite = Util.TextureGen.MakeSprite(Util.TextureGen.RingAlpha(64, 6f));
+                    return _ringSprite;
+                default:
+                {
+                    var sprite = Load(IconPath(icon));
+                    return sprite != null ? sprite : Load(MysteryIcon);
+                }
+            }
+        }
+
+        // Chooses the sprite a marker should currently display: real pickup icons for
+        // dropped items, the boss portrait for bosses, otherwise the kind's configured icon.
+        public static Sprite ResolveSprite(TrackedMarker m, MapIcon iconChoice)
+        {
+            if (m.Kind == MapKind.GroundItem && m.Pickup != null && m.Pickup.pickupIndex.isValid)
             {
                 var def = PickupCatalog.GetPickupDef(m.Pickup.pickupIndex);
-                if (def != null)
-                    sprite = def.iconSprite;
+                if (def != null && def.iconSprite != null)
+                    return def.iconSprite;
+                return GetSprite(MapIcon.Dot);
             }
-            if (sprite == null)
-                sprite = Load(PathFor(m.Kind));
-            if (sprite == null && m.Source != null)
+            if (m.Kind == MapKind.EnemyBoss && m.Body != null)
             {
-                try { sprite = RoR2.UI.PingIndicator.GetInteractableIcon(m.Source.gameObject); }
+                var portrait = GetPortraitSprite(m.Body);
+                if (portrait != null)
+                    return portrait;
+            }
+            var chosen = GetSprite(iconChoice);
+            if (chosen != null)
+                return chosen;
+            if (m.Source != null)
+            {
+                try
+                {
+                    var ping = RoR2.UI.PingIndicator.GetInteractableIcon(m.Source.gameObject);
+                    if (ping != null)
+                        return ping;
+                }
                 catch (System.Exception) { /* game's resolver can throw on odd objects */ }
             }
-            m.Sprite = sprite != null ? sprite : Load(MysteryIcon);
+            return Load(MysteryIcon);
         }
 
-        public static float SizeFor(MapKind kind)
+        private static Sprite GetPortraitSprite(CharacterBody body)
         {
-            switch (kind)
-            {
-                case MapKind.Chest:
-                case MapKind.GoldChest:
-                case MapKind.Shrine:
-                case MapKind.NewtAltar:
-                    return 24f;
-                case MapKind.Teleporter: return 28f;
-                case MapKind.Multishop:
-                case MapKind.Printer:
-                case MapKind.Scrapper:
-                case MapKind.Portal:
-                    return 22f;
-                case MapKind.Drone:
-                case MapKind.Barrel:
-                case MapKind.VoidPotential:
-                case MapKind.CommandCube:
-                    return 20f;
-                case MapKind.Enemy: return 16f;
-                case MapKind.Minion:
-                case MapKind.OtherPlayer:
-                case MapKind.GroundItem:
-                    return 18f;
-                default: return 20f;
-            }
+            if (!(body.portraitIcon is Texture2D tex) || tex == null)
+                return null;
+            int key = tex.GetInstanceID();
+            if (PortraitCache.TryGetValue(key, out var sprite))
+                return sprite;
+            sprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f));
+            PortraitCache[key] = sprite;
+            return sprite;
         }
 
-        public static Color GetColor(TrackedMarker m)
+        // Final marker color = the kind's configured color multiplied by any dynamic tint.
+        public static Color GetColor(TrackedMarker m, Color baseColor)
         {
-            switch (m.Kind)
-            {
-                case MapKind.Teleporter:
-                    return m.Teleporter != null ? GetTeleporterColor(m.Teleporter) : Color.white;
-                case MapKind.GoldChest: return new Color(1f, 0.82f, 0.25f);
-                case MapKind.Shrine: return m.Gold ? new Color(1f, 0.85f, 0.3f) : Color.white;
-                case MapKind.NewtAltar: return new Color(0.75f, 0.8f, 1f);
-                case MapKind.Multishop: return new Color(0.6f, 1f, 0.75f);
-                case MapKind.VoidPotential: return new Color(0.8f, 0.55f, 1f);
-                case MapKind.CommandCube: return new Color(1f, 0.95f, 0.45f);
-                case MapKind.Minion: return new Color(0.45f, 1f, 0.9f);
-                case MapKind.OtherPlayer: return new Color(0.5f, 0.9f, 1f);
-                case MapKind.Enemy:
-                    if (m.IsBoss) return new Color(1f, 0.12f, 0.1f);
-                    if (m.IsElite) return new Color(1f, 0.35f, 0.15f);
-                    return new Color(1f, 0.45f, 0.4f);
-                default: return Color.white;
-            }
+            if (m.TintColor == Color.clear)
+                return baseColor;
+            Color tint = m.TintColor; // implicit Color32 -> Color
+            return baseColor * tint;
         }
 
-        public static Color GetTeleporterColor(TeleporterInteraction tp)
+        public static Color GetTeleporterTint(TeleporterInteraction tp)
         {
             if (tp.activationState >= TeleporterInteraction.ActivationState.Charged)
                 return new Color(0.35f, 1f, 0.45f);
             if (tp.activationState >= TeleporterInteraction.ActivationState.Charging)
                 return new Color(1f, 0.85f, 0.35f);
-            return Color.white;
+            return Color.clear;
+        }
+
+        public readonly struct KindDefault
+        {
+            public readonly MapIcon Icon;
+            public readonly Color Color;
+            public readonly float Size;
+
+            public KindDefault(MapIcon icon, Color color, float size)
+            {
+                Icon = icon;
+                Color = color;
+                Size = size;
+            }
+        }
+
+        private static readonly Dictionary<MapKind, KindDefault> Defaults = new Dictionary<MapKind, KindDefault>
+        {
+            { MapKind.Chest, new KindDefault(MapIcon.ChestOutlined, Color.white, 24f) },
+            { MapKind.GoldChest, new KindDefault(MapIcon.ChestOutlined, new Color(1f, 0.3f, 0.25f), 26f) },
+            { MapKind.CategoryChest, new KindDefault(MapIcon.Chest, Color.white, 24f) },
+            { MapKind.Shrine, new KindDefault(MapIcon.Shrine, Color.white, 24f) },
+            { MapKind.NewtAltar, new KindDefault(MapIcon.LunarPillar, new Color(0.75f, 0.8f, 1f), 24f) },
+            { MapKind.Drone, new KindDefault(MapIcon.Drone, Color.white, 20f) },
+            { MapKind.DroneBroken, new KindDefault(MapIcon.Drone, new Color(0.62f, 0.62f, 0.68f), 20f) },
+            { MapKind.Scrapper, new KindDefault(MapIcon.WIP, Color.white, 22f) },
+            { MapKind.Printer, new KindDefault(MapIcon.Edit, Color.white, 22f) },
+            { MapKind.Multishop, new KindDefault(MapIcon.Chest, Color.white, 22f) },
+            { MapKind.EquipmentBarrel, new KindDefault(MapIcon.Barrel, new Color(1f, 0.62f, 0.18f), 22f) },
+            { MapKind.Barrel, new KindDefault(MapIcon.Barrel, Color.white, 20f) },
+            { MapKind.Teleporter, new KindDefault(MapIcon.Teleporter, Color.white, 28f) },
+            { MapKind.Portal, new KindDefault(MapIcon.Quickplay, Color.white, 22f) },
+            { MapKind.VoidPotential, new KindDefault(MapIcon.Loot, new Color(0.8f, 0.55f, 1f), 20f) },
+            { MapKind.CommandCube, new KindDefault(MapIcon.Loot, new Color(1f, 0.95f, 0.45f), 20f) },
+            { MapKind.GroundItem, new KindDefault(MapIcon.Dot, Color.white, 14f) },
+            { MapKind.Enemy, new KindDefault(MapIcon.Attack, new Color(1f, 0.45f, 0.4f), 16f) },
+            { MapKind.EnemyElite, new KindDefault(MapIcon.Attack, new Color(1f, 0.32f, 0.12f), 17f) },
+            { MapKind.EnemyBoss, new KindDefault(MapIcon.Attack, new Color(1f, 0.12f, 0.1f), 20f) },
+            { MapKind.Minion, new KindDefault(MapIcon.Drone, new Color(0.45f, 1f, 0.9f), 18f) },
+            { MapKind.OtherPlayer, new KindDefault(MapIcon.Sprint, new Color(0.5f, 0.9f, 1f), 18f) },
+            { MapKind.Other, new KindDefault(MapIcon.Mystery, Color.white, 20f) },
+        };
+
+        public static KindDefault DefaultFor(MapKind kind)
+        {
+            return Defaults.TryGetValue(kind, out var d) ? d : new KindDefault(MapIcon.Mystery, Color.white, 20f);
+        }
+
+        public static string Label(MapKind kind)
+        {
+            switch (kind)
+            {
+                case MapKind.Chest: return "Chest";
+                case MapKind.GoldChest: return "Large Chest";
+                case MapKind.CategoryChest: return "Category Chest";
+                case MapKind.Shrine: return "Shrine";
+                case MapKind.NewtAltar: return "Newt Altar";
+                case MapKind.Drone: return "Drone";
+                case MapKind.DroneBroken: return "Broken Drone";
+                case MapKind.Scrapper: return "Scrapper";
+                case MapKind.Printer: return "Printer / Cauldron";
+                case MapKind.Multishop: return "Multishop";
+                case MapKind.EquipmentBarrel: return "Equipment Barrel";
+                case MapKind.Barrel: return "Barrel";
+                case MapKind.Teleporter: return "Teleporter";
+                case MapKind.Portal: return "Portal";
+                case MapKind.VoidPotential: return "Void Potential";
+                case MapKind.CommandCube: return "Command Cube";
+                case MapKind.GroundItem: return "Ground Item";
+                case MapKind.Enemy: return "Enemy";
+                case MapKind.EnemyElite: return "Elite Enemy";
+                case MapKind.EnemyBoss: return "Boss";
+                case MapKind.Minion: return "Minion";
+                case MapKind.OtherPlayer: return "Other Player";
+                default: return "Other";
+            }
         }
     }
 }

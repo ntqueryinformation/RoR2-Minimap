@@ -1,5 +1,7 @@
+using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using BepInEx.Configuration;
+using OpenMinimap.Tracking;
 using OpenMinimap.Util;
 using RiskOfOptions;
 using RiskOfOptions.OptionConfigs;
@@ -25,6 +27,14 @@ namespace OpenMinimap.Config
     {
         Circle,
         Square,
+    }
+
+    public sealed class KindSettings
+    {
+        public ConfigEntry<bool> Enabled;
+        public ConfigEntry<MapIcon> Icon;
+        public ConfigEntry<Color> Color;
+        public ConfigEntry<float> Size;
     }
 
     public sealed class MinimapConfig
@@ -55,28 +65,11 @@ namespace OpenMinimap.Config
         public readonly ConfigEntry<bool> CompassClampMarkers;
         public readonly ConfigEntry<bool> CompassInvert;
 
-        // Icons (per-kind visibility)
-        public readonly ConfigEntry<bool> ShowChests;
-        public readonly ConfigEntry<bool> ShowGoldChests;
-        public readonly ConfigEntry<bool> ShowShrines;
-        public readonly ConfigEntry<bool> ShowNewtAltars;
-        public readonly ConfigEntry<bool> ShowDrones;
-        public readonly ConfigEntry<bool> ShowScrapper;
-        public readonly ConfigEntry<bool> ShowPrinters;
-        public readonly ConfigEntry<bool> ShowMultishops;
-        public readonly ConfigEntry<bool> ShowBarrels;
-        public readonly ConfigEntry<bool> ShowTeleporter;
-        public readonly ConfigEntry<bool> ShowPortals;
-        public readonly ConfigEntry<bool> ShowVoidPotentials;
-        public readonly ConfigEntry<bool> ShowCommandCubes;
-        public readonly ConfigEntry<bool> ShowGroundItems;
-        public readonly ConfigEntry<bool> ShowOtherPlayers;
-        public readonly ConfigEntry<bool> ShowMinions;
-        public readonly ConfigEntry<bool> ShowOther;
-
-        // Enemies
+        // Enemies (master gate; per-kind toggles live in the Icons section)
         public readonly ConfigEntry<bool> ShowEnemies;
-        public readonly ConfigEntry<bool> HighlightElites;
+
+        // Per-kind icon/color/size/visibility
+        public IReadOnlyDictionary<MapKind, KindSettings> Kinds { get; }
 
         public MinimapConfig(ConfigFile file)
         {
@@ -102,7 +95,7 @@ namespace OpenMinimap.Config
             Opacity = file.Bind("Map", "Opacity", 80,
                 "Opacity of the whole minimap in percent.");
             IconScale = file.Bind("Map", "IconScale", 1f,
-                "Global scale multiplier for all icons.");
+                "Global scale multiplier applied on top of every icon's own size.");
             ClampToEdge = file.Bind("Map", "ClampToEdge", true,
                 "Keep icons of far-away objects pinned to the rim of the minimap instead of hiding them.");
             ElevationArrows = file.Bind("Map", "ElevationArrows", true,
@@ -123,53 +116,34 @@ namespace OpenMinimap.Config
             CompassInvert = file.Bind("Compass", "InvertScrollDirection", false,
                 "Flip which way the compass scrolls when you turn the camera.");
 
-            ShowChests = file.Bind("Icons", "ShowChests", true, "Show regular and timed chests.");
-            ShowGoldChests = file.Bind("Icons", "ShowGoldChests", true, "Show large (legendary) chests.");
-            ShowShrines = file.Bind("Icons", "ShowShrines", true, "Show shrines (all types, including DLC shrines).");
-            ShowNewtAltars = file.Bind("Icons", "ShowNewtAltars", true, "Show Newt Altars (bazaar portals).");
-            ShowDrones = file.Bind("Icons", "ShowDrones", true, "Show purchasable drones and turrets.");
-            ShowScrapper = file.Bind("Icons", "ShowScrapper", true, "Show item scrappers.");
-            ShowPrinters = file.Bind("Icons", "ShowPrinters", true, "Show 3D printers.");
-            ShowMultishops = file.Bind("Icons", "ShowMultishops", true, "Show multishop terminals.");
-            ShowBarrels = file.Bind("Icons", "ShowBarrels", true, "Show unopened barrels.");
-            ShowTeleporter = file.Bind("Icons", "ShowTeleporter", true, "Show the teleporter (color changes while charging/charged).");
-            ShowPortals = file.Bind("Icons", "ShowPortals", true, "Show portals (blue, gold, celestial, void, etc.).");
-            ShowVoidPotentials = file.Bind("Icons", "ShowVoidPotentials", true, "Show void potentials.");
-            ShowCommandCubes = file.Bind("Icons", "ShowCommandCubes", true, "Show Command essence cubes.");
-            ShowGroundItems = file.Bind("Icons", "ShowGroundItems", true, "Show dropped items lying on the ground.");
-            ShowOtherPlayers = file.Bind("Icons", "ShowOtherPlayers", true, "Show other players in multiplayer.");
-            ShowMinions = file.Bind("Icons", "ShowMinions", true, "Show your allied drones and turrets in the field.");
-            ShowOther = file.Bind("Icons", "ShowOther", true, "Show interactables that don't match a known category (keeps new DLC content visible with the game's own ping icon).");
-
             ShowEnemies = file.Bind("Enemies", "ShowEnemies", true,
-                "Show hostile enemies. When off, ALL enemies are hidden — including teleporter bosses and elites.");
-            HighlightElites = file.Bind("Enemies", "HighlightElites", true,
-                "Tint elite and boss enemies a brighter red than regular enemies.");
+                "Master switch for hostile enemies (regular, elite and boss). Hides all of them when off.");
+
+            // One enabled/icon/color/size group per object kind. Sizes in pixels at
+            // IconScale 1; colors multiply with dynamic tints (item tiers, charge state).
+            var kinds = new Dictionary<MapKind, KindSettings>();
+            foreach (MapKind kind in System.Enum.GetValues(typeof(MapKind)))
+            {
+                var d = IconLibrary.DefaultFor(kind);
+                string label = IconLibrary.Label(kind);
+                kinds[kind] = new KindSettings
+                {
+                    Enabled = file.Bind("Icons", kind + ".Enabled", true, $"Show {label} on the map."),
+                    Icon = file.Bind("Icons", kind + ".Icon", d.Icon, $"Icon used for {label}."),
+                    Color = file.Bind("Icons", kind + ".Color", d.Color, $"Color of the {label} icon."),
+                    Size = file.Bind("Icons", kind + ".Size", d.Size, $"Size in pixels of the {label} icon."),
+                };
+            }
+            Kinds = kinds;
         }
 
-        public bool IsKindVisible(Tracking.MapKind kind)
+        public bool IsKindVisible(MapKind kind)
         {
-            switch (kind)
-            {
-                case Tracking.MapKind.Chest: return ShowChests.Value;
-                case Tracking.MapKind.GoldChest: return ShowGoldChests.Value;
-                case Tracking.MapKind.Shrine: return ShowShrines.Value;
-                case Tracking.MapKind.NewtAltar: return ShowNewtAltars.Value;
-                case Tracking.MapKind.Drone: return ShowDrones.Value;
-                case Tracking.MapKind.Scrapper: return ShowScrapper.Value;
-                case Tracking.MapKind.Printer: return ShowPrinters.Value;
-                case Tracking.MapKind.Multishop: return ShowMultishops.Value;
-                case Tracking.MapKind.Barrel: return ShowBarrels.Value;
-                case Tracking.MapKind.Teleporter: return ShowTeleporter.Value;
-                case Tracking.MapKind.Portal: return ShowPortals.Value;
-                case Tracking.MapKind.VoidPotential: return ShowVoidPotentials.Value;
-                case Tracking.MapKind.CommandCube: return ShowCommandCubes.Value;
-                case Tracking.MapKind.GroundItem: return ShowGroundItems.Value;
-                case Tracking.MapKind.Enemy: return ShowEnemies.Value;
-                case Tracking.MapKind.Minion: return ShowMinions.Value;
-                case Tracking.MapKind.OtherPlayer: return ShowOtherPlayers.Value;
-                default: return ShowOther.Value;
-            }
+            if (!Kinds[kind].Enabled.Value)
+                return false;
+            if (kind == MapKind.Enemy || kind == MapKind.EnemyElite || kind == MapKind.EnemyBoss)
+                return ShowEnemies.Value;
+            return true;
         }
 
         // Settings registration is deferred to Start() by Plugin: after every plugin's Awake, so
@@ -217,26 +191,18 @@ namespace OpenMinimap.Config
             Add(new CheckBoxOption(CompassClampMarkers, new CheckBoxConfig { category = "Compass" }), modGuid, modName);
             Add(new CheckBoxOption(CompassInvert, new CheckBoxConfig { category = "Compass" }), modGuid, modName);
 
-            Add(new CheckBoxOption(ShowChests, new CheckBoxConfig { category = "Icons" }), modGuid, modName);
-            Add(new CheckBoxOption(ShowGoldChests, new CheckBoxConfig { category = "Icons" }), modGuid, modName);
-            Add(new CheckBoxOption(ShowShrines, new CheckBoxConfig { category = "Icons" }), modGuid, modName);
-            Add(new CheckBoxOption(ShowNewtAltars, new CheckBoxConfig { category = "Icons" }), modGuid, modName);
-            Add(new CheckBoxOption(ShowDrones, new CheckBoxConfig { category = "Icons" }), modGuid, modName);
-            Add(new CheckBoxOption(ShowScrapper, new CheckBoxConfig { category = "Icons" }), modGuid, modName);
-            Add(new CheckBoxOption(ShowPrinters, new CheckBoxConfig { category = "Icons" }), modGuid, modName);
-            Add(new CheckBoxOption(ShowMultishops, new CheckBoxConfig { category = "Icons" }), modGuid, modName);
-            Add(new CheckBoxOption(ShowBarrels, new CheckBoxConfig { category = "Icons" }), modGuid, modName);
-            Add(new CheckBoxOption(ShowTeleporter, new CheckBoxConfig { category = "Icons" }), modGuid, modName);
-            Add(new CheckBoxOption(ShowPortals, new CheckBoxConfig { category = "Icons" }), modGuid, modName);
-            Add(new CheckBoxOption(ShowVoidPotentials, new CheckBoxConfig { category = "Icons" }), modGuid, modName);
-            Add(new CheckBoxOption(ShowCommandCubes, new CheckBoxConfig { category = "Icons" }), modGuid, modName);
-            Add(new CheckBoxOption(ShowGroundItems, new CheckBoxConfig { category = "Icons" }), modGuid, modName);
-            Add(new CheckBoxOption(ShowOtherPlayers, new CheckBoxConfig { category = "Icons" }), modGuid, modName);
-            Add(new CheckBoxOption(ShowMinions, new CheckBoxConfig { category = "Icons" }), modGuid, modName);
-            Add(new CheckBoxOption(ShowOther, new CheckBoxConfig { category = "Icons" }), modGuid, modName);
+            // Per-kind options in stable enum order: enabled, icon, color, size.
+            foreach (MapKind kind in System.Enum.GetValues(typeof(MapKind)))
+            {
+                var s = Kinds[kind];
+                string label = IconLibrary.Label(kind);
+                Add(new CheckBoxOption(s.Enabled, new CheckBoxConfig { category = "Icons", name = label }), modGuid, modName);
+                Add(new ChoiceOption(s.Icon, new ChoiceConfig { category = "Icons", name = label + " Icon" }), modGuid, modName);
+                Add(new ColorOption(s.Color, new ColorOptionConfig { category = "Icons", name = label + " Color" }), modGuid, modName);
+                Add(new StepSliderOption(s.Size, new StepSliderConfig { category = "Icons", min = 8f, max = 48f, increment = 1f, FormatString = "{0:0} px", name = label + " Size" }), modGuid, modName);
+            }
 
-            Add(new CheckBoxOption(ShowEnemies, new CheckBoxConfig { category = "Enemies" }), modGuid, modName);
-            Add(new CheckBoxOption(HighlightElites, new CheckBoxConfig { category = "Enemies" }), modGuid, modName);
+            Add(new CheckBoxOption(ShowEnemies, new CheckBoxConfig { category = "Enemies", name = "Show All Enemies" }), modGuid, modName);
         }
 
         private static void Add(BaseOption option, string modGuid, string modName)

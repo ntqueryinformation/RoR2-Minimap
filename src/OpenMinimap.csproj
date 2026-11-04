@@ -5,7 +5,7 @@
     <LangVersion>latest</LangVersion>
     <RootNamespace>OpenMinimap</RootNamespace>
     <AssemblyName>OpenMinimap</AssemblyName>
-    <Version>1.0.0</Version>
+    <Version>1.1.0</Version>
     <Nullable>disable</Nullable>
     <NoWarn>$(NoWarn);NU1701;CS0436;CS0618</NoWarn>
 

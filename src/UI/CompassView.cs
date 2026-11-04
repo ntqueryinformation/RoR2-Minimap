@@ -231,13 +231,13 @@ namespace OpenMinimap.UI
                 e.Root.transform.localRotation = Quaternion.identity;
 
                 var rt = e.Image.rectTransform;
-                float iconSize = IconLibrary.SizeFor(m.Kind) * cfg.IconScale.Value * (clamped ? 0.85f : 1f);
+                float iconSize = cfg.Kinds[m.Kind].Size.Value * cfg.IconScale.Value * (clamped ? 0.85f : 1f);
                 if (!Mathf.Approximately(rt.sizeDelta.x, iconSize))
                     rt.sizeDelta = new Vector2(iconSize, iconSize);
                 if ((Sprite)e.Image.sprite != (Sprite)m.Sprite)
                     e.Image.sprite = m.Sprite;
 
-                Color c = IconLibrary.GetColor(m);
+                Color c = IconLibrary.GetColor(m, cfg.Kinds[m.Kind].Color.Value);
                 if (m.Purchase != null && !m.Purchase.available)
                     c.a = 0.35f;
                 if (clamped)
