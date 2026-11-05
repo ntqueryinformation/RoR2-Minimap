@@ -105,6 +105,40 @@ namespace OpenMinimap.Util
             });
         }
 
+        // Regular hexagon (pointy-top) — selectable marker shape.
+        public static Texture2D HexAlpha(int size)
+        {
+            var verts = new Vector2[6];
+            for (int i = 0; i < 6; i++)
+            {
+                float a = (60f * i + 90f) * Mathf.Deg2Rad;
+                verts[i] = new Vector2(0.5f + 0.45f * Mathf.Cos(a), 0.5f + 0.45f * Mathf.Sin(a));
+            }
+            return Bake(size, (x, y) =>
+            {
+                var p = new Vector2(x + 0.5f, y + 0.5f);
+                int sign = 0;
+                float minEdge = float.MaxValue;
+                for (int i = 0; i < 6; i++)
+                {
+                    Vector2 a = verts[i];
+                    Vector2 b = verts[(i + 1) % 6];
+                    float s = Sign(p, a, b);
+                    int sSign = s > 0f ? 1 : (s < 0f ? -1 : 0);
+                    if (sSign != 0)
+                    {
+                        if (sign == 0)
+                            sign = sSign;
+                        else if (sSign != sign)
+                            return Color.clear;
+                    }
+                    minEdge = Mathf.Min(minEdge, Mathf.Abs(s));
+                }
+                float a2 = Mathf.Clamp01(minEdge + 0.5f);
+                return new Color(1f, 1f, 1f, a2);
+            });
+        }
+
         private static float Sign(Vector2 p, Vector2 a, Vector2 b)
         {
             return (b.x - a.x) * (p.y - a.y) - (a.y - b.y) * (p.x - a.x);

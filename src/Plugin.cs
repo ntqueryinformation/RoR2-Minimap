@@ -69,5 +69,36 @@ namespace OpenMinimap
         {
             MapScanner.QueueEventRescan();
         }
+
+        // Debug helper: run `openminimap_scan` in the dev console near untracked DLC content and
+        // the log will contain every interactable's name, tokens and component list.
+        [ConCommand(commandName = "openminimap_scan", helpText = "Dumps all interactables (names, tokens, components) to the log for reporting missed objects.", flags = ConVarFlags.None)]
+        private static void CmdScan(ConCommandArgs args)
+        {
+            foreach (var pi in UnityEngine.Object.FindObjectsOfType<PurchaseInteraction>())
+            {
+                if (!pi)
+                    continue;
+                Log.LogInfo($"[scan] purchase '{pi.gameObject.name}' context='{pi.contextToken}' display='{pi.displayNameToken}' available={pi.available} components={Describe(pi.gameObject)}");
+            }
+            foreach (var gi in UnityEngine.Object.FindObjectsOfType<GenericInteraction>())
+            {
+                if (!gi)
+                    continue;
+                Log.LogInfo($"[scan] generic '{gi.gameObject.name}' context='{gi.contextToken}' components={Describe(gi.gameObject)}");
+            }
+            Log.LogInfo("[scan] done");
+        }
+
+        private static string Describe(GameObject go)
+        {
+            var names = new System.Collections.Generic.List<string>(8);
+            foreach (var c in go.GetComponents<Component>())
+            {
+                if (c)
+                    names.Add(c.GetType().Name);
+            }
+            return "[" + string.Join(",", names) + "]";
+        }
     }
 }

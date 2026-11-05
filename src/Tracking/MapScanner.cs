@@ -16,6 +16,14 @@ namespace OpenMinimap.Tracking
         private const float RescanInterval = 2f;
         private const float EventRescanCooldown = 0.5f;
         private const int MaxEnemyMarkers = 200;
+        private const float TripleShopClusterRadius = 4f;    // terminals within this range form one triple shop
+        private const float ShrineHideGraceSeconds = 10f;    // chance shrines go unavailable between paid uses
+        private const float UsedHideGraceSeconds = 0.75f;    // everything else disappears shortly after being used
+
+        private static readonly string[] RelicHints =
+        {
+            "Hex", "Reliquary", "Gong", "Nkuhana", "Hallowed", "Veil", "Compulsion", "Descent", "Concept",
+        };
 
         private static readonly Dictionary<int, TrackedMarker> Markers = new Dictionary<int, TrackedMarker>(256);
         private static readonly List<TrackedMarker> VisibleList = new List<TrackedMarker>(256);
@@ -113,20 +121,103 @@ namespace OpenMinimap.Tracking
 
         private static void ScanPurchasables(HashSet<int> seen)
         {
+            // First pass: classify everything so multishop clusters can be grouped.
+            var classified = new List<(PurchaseInteraction pi, MapKind kind, bool tinted)>(64);
             foreach (var pi in UnityEngine.Object.FindObjectsOfType<PurchaseInteraction>())
             {
                 if (!pi)
                     continue;
-                seen.Add(pi.GetInstanceID());
                 var kind = Classify(pi, out bool tinted);
+                classified.Add((pi, kind, tinted));
+            }
+
+            // Terminals with 2+ other terminals within range are the triple-shop structures —
+            // they should collapse into a single marker instead of three stacked icons.
+            var triples = new HashSet<int>();
+            foreach (var entry in classified)
+            {
+                if (entry.kind != MapKind.Multishop)
+                    continue;
+                int near = 0;
+                foreach (var other in classified)
+                {
+                    if (other.kind == MapKind.Multishop && !ReferenceEquals(other.pi, entry.pi) &&
+                        WithinXZ(entry.pi.transform.position, other.pi.transform.position, TripleShopClusterRadius))
+                        near++;
+                }
+                if (near >= 2)
+                    triples.Add(entry.pi.GetInstanceID());
+            }
+
+            foreach (var entry in classified)
+            {
+                PurchaseInteraction pi = entry.pi;
+                seen.Add(pi.GetInstanceID());
+                var kind = entry.kind;
+                if (kind == MapKind.Multishop && triples.Contains(pi.GetInstanceID()))
+                {
+                    if (MergeTripleShop(pi))
+                        continue;
+                    kind = MapKind.MultishopTriple;
+                }
                 var m = GetOrCreate(pi.GetInstanceID(), pi, kind);
                 m.Purchase = pi;
                 m.TintColor = Color.clear;
                 if (kind == MapKind.Barrel)
                     m.Barrel = pi.GetComponent<BarrelInteraction>();
-                if (tinted)
+                if (entry.tinted)
                     m.TintColor = TintFor(pi);
             }
+        }
+
+        // Reuses an existing marker for a triple-shop cluster if one is nearby, preferring an
+        // available terminal as its anchor. Returns true when this terminal was merged and
+        // should not get a marker of its own.
+        private static bool MergeTripleShop(PurchaseInteraction pi)
+        {
+            Vector3 pos = pi.transform.position;
+            TrackedMarker rep = null;
+            foreach (var kv in Markers)
+            {
+                var m = kv.Value;
+                if (m.Kind != MapKind.MultishopTriple || !m.Transform)
+                    continue;
+                if (WithinXZ(pos, m.Transform.position, TripleShopClusterRadius))
+                {
+                    rep = m;
+                    break;
+                }
+            }
+            if (rep == null)
+                return false;
+
+            bool piAvailable = pi.available;
+            bool repAvailable = rep.Purchase && rep.Purchase.available;
+            if (piAvailable && !repAvailable)
+            {
+                rep.Source = pi;
+                rep.Transform = pi.transform;
+                rep.Purchase = pi;
+                rep.Hidden = false;
+                rep.Available = true;
+                rep.UnavailableSince = -1f;
+                rep.TintColor = TintFor(pi);
+            }
+            // Retire this terminal's own marker if a previous scan gave it one.
+            int id = pi.GetInstanceID();
+            if (Markers.TryGetValue(id, out var stale) && !ReferenceEquals(stale, rep))
+            {
+                Markers.Remove(id);
+                MarkerRemoved?.Invoke(stale);
+            }
+            return true;
+        }
+
+        private static bool WithinXZ(Vector3 a, Vector3 b, float r)
+        {
+            float dx = a.x - b.x;
+            float dz = a.z - b.z;
+            return dx * dx + dz * dz <= r * r;
         }
 
         private static void ScanTeleporter(HashSet<int> seen)
@@ -143,16 +234,37 @@ namespace OpenMinimap.Tracking
 
         private static void ScanGenericInteractions(HashSet<int> seen)
         {
+            // Every GenericInteraction is tracked: portal tokens become Portals, Hallowed
+            // Concepts-style names become Relics (hex icon), and anything else stays visible
+            // as "Other" with the game's own ping icon — unknown content is never invisible.
             foreach (var gi in UnityEngine.Object.FindObjectsOfType<GenericInteraction>())
             {
                 if (!gi)
                     continue;
-                string token = gi.contextToken;
-                if (!IsPortalToken(token))
-                    continue;
                 seen.Add(gi.GetInstanceID());
-                GetOrCreate(gi.GetInstanceID(), gi, MapKind.Portal);
+                string token = gi.contextToken;
+                string name = gi.gameObject.name;
+                MapKind kind;
+                if (IsPortalToken(token) || IsPortalToken(name))
+                    kind = MapKind.Portal;
+                else if (MatchesRelic(token) || MatchesRelic(name))
+                    kind = MapKind.Relic;
+                else
+                    kind = MapKind.Other;
+                GetOrCreate(gi.GetInstanceID(), gi, kind);
             }
+        }
+
+        private static bool MatchesRelic(string s)
+        {
+            if (string.IsNullOrEmpty(s))
+                return false;
+            foreach (var hint in RelicHints)
+            {
+                if (s.IndexOf(hint, StringComparison.OrdinalIgnoreCase) >= 0)
+                    return true;
+            }
+            return false;
         }
 
         private static void ScanPickups(HashSet<int> seen)
@@ -251,7 +363,30 @@ namespace OpenMinimap.Tracking
                 if (m.Barrel != null && m.Barrel.Networkopened)
                     m.Hidden = true;
                 if (m.Purchase != null)
-                    m.Available = m.Purchase.available;
+                {
+                    // Used interactables disappear: once a purchase becomes unavailable and
+                    // stays that way past its grace window, the marker is hidden. Shrines get
+                    // a long grace because chance shrines lock for a few seconds between paid
+                    // uses; everything else (chests, terminals, drones, printers, barrels)
+                    // disappears almost immediately. Teleporter-locked shops reappear when
+                    // they become available again.
+                    bool avail = m.Purchase.available;
+                    m.Available = avail;
+                    if (avail)
+                    {
+                        m.UnavailableSince = -1f;
+                        if (m.Hidden && !(m.Barrel != null && m.Barrel.Networkopened))
+                            m.Hidden = false;
+                    }
+                    else
+                    {
+                        if (m.UnavailableSince < 0f)
+                            m.UnavailableSince = Time.unscaledTime;
+                        float grace = m.Kind == MapKind.Shrine ? ShrineHideGraceSeconds : UsedHideGraceSeconds;
+                        if (Time.unscaledTime - m.UnavailableSince >= grace)
+                            m.Hidden = true;
+                    }
+                }
                 if (m.Body != null && IsEnemyKind(m.Kind))
                 {
                     // Elites/bosses change mid-fight — keep their kind in sync so their
@@ -364,6 +499,7 @@ namespace OpenMinimap.Tracking
             if (n.IndexOf("Scrapper", ig) >= 0) return MapKind.Scrapper;
             if (n.IndexOf("Potential", ig) >= 0) return MapKind.VoidPotential;
             if (n.IndexOf("CommandCube", ig) >= 0) return MapKind.CommandCube;
+            if (MatchesRelic(token) || MatchesRelic(n)) return MapKind.Relic;
             if (IsPortalToken(n)) return MapKind.Portal;
             if (n.IndexOf("Broken", ig) >= 0) return MapKind.DroneBroken;
             if (n.IndexOf("Drone", ig) >= 0) return MapKind.Drone;

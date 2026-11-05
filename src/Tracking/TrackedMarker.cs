@@ -34,6 +34,7 @@ namespace OpenMinimap.Tracking
         public float Bearing;      // absolute bearing, degrees, 0 = north (+z)
         public float BearingDelta; // bearing relative to the camera yaw
         public bool Available = true;
+        public float UnavailableSince = -1f; // used-hide grace timing (chance shrines toggle this between paid uses)
 
         public Sprite Sprite; // re-resolved every frame by the controller (cheap lookups)
     }

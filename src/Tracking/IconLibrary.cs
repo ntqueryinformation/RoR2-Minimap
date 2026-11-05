@@ -19,6 +19,7 @@ namespace OpenMinimap.Tracking
         private static Sprite _dotSprite;
         private static Sprite _triangleSprite;
         private static Sprite _ringSprite;
+        private static Sprite _hexSprite;
 
         public static Sprite ElevationChevron => Load(ElevationIcon);
 
@@ -82,6 +83,10 @@ namespace OpenMinimap.Tracking
                     if (_ringSprite == null)
                         _ringSprite = Util.TextureGen.MakeSprite(Util.TextureGen.RingAlpha(64, 6f));
                     return _ringSprite;
+                case MapIcon.Hex:
+                    if (_hexSprite == null)
+                        _hexSprite = Util.TextureGen.MakeSprite(Util.TextureGen.HexAlpha(64));
+                    return _hexSprite;
                 default:
                 {
                     var sprite = Load(IconPath(icon));
@@ -179,12 +184,14 @@ namespace OpenMinimap.Tracking
             { MapKind.Scrapper, new KindDefault(MapIcon.WIP, Color.white, 22f) },
             { MapKind.Printer, new KindDefault(MapIcon.Edit, Color.white, 22f) },
             { MapKind.Multishop, new KindDefault(MapIcon.Chest, Color.white, 22f) },
+            { MapKind.MultishopTriple, new KindDefault(MapIcon.Loot, new Color(0.45f, 0.95f, 0.7f), 24f) },
             { MapKind.EquipmentBarrel, new KindDefault(MapIcon.Barrel, new Color(1f, 0.62f, 0.18f), 22f) },
             { MapKind.Barrel, new KindDefault(MapIcon.Barrel, Color.white, 20f) },
             { MapKind.Teleporter, new KindDefault(MapIcon.Teleporter, Color.white, 28f) },
             { MapKind.Portal, new KindDefault(MapIcon.Quickplay, Color.white, 22f) },
             { MapKind.VoidPotential, new KindDefault(MapIcon.Loot, new Color(0.8f, 0.55f, 1f), 20f) },
             { MapKind.CommandCube, new KindDefault(MapIcon.Loot, new Color(1f, 0.95f, 0.45f), 20f) },
+            { MapKind.Relic, new KindDefault(MapIcon.Hex, new Color(0.55f, 1f, 0.8f), 22f) },
             { MapKind.GroundItem, new KindDefault(MapIcon.Dot, Color.white, 14f) },
             { MapKind.Enemy, new KindDefault(MapIcon.Attack, new Color(1f, 0.45f, 0.4f), 16f) },
             { MapKind.EnemyElite, new KindDefault(MapIcon.Attack, new Color(1f, 0.32f, 0.12f), 17f) },
@@ -213,12 +220,14 @@ namespace OpenMinimap.Tracking
                 case MapKind.Scrapper: return "Scrapper";
                 case MapKind.Printer: return "Printer / Cauldron";
                 case MapKind.Multishop: return "Multishop";
+                case MapKind.MultishopTriple: return "Multishop (Triple)";
                 case MapKind.EquipmentBarrel: return "Equipment Barrel";
                 case MapKind.Barrel: return "Barrel";
                 case MapKind.Teleporter: return "Teleporter";
                 case MapKind.Portal: return "Portal";
                 case MapKind.VoidPotential: return "Void Potential";
                 case MapKind.CommandCube: return "Command Cube";
+                case MapKind.Relic: return "Hallowed Relic";
                 case MapKind.GroundItem: return "Ground Item";
                 case MapKind.Enemy: return "Enemy";
                 case MapKind.EnemyElite: return "Elite Enemy";

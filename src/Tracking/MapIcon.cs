@@ -28,5 +28,6 @@ namespace OpenMinimap.Tracking
         Dot,
         Triangle,
         Ring,
+        Hex,
     }
 }
