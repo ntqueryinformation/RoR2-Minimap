@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.3.1
+
+- Triple shops are now detected exactly via the structure's MultiShopController component (instead of only positional clustering), so every DLC variant collapses into one marker.
+- Triple-shop default icon changed from a chest-lookalike loot box to a gold ring, so it can't be mistaken for a chest or a single multishop anymore.
+- Printers are now pinned by their DUPLICATOR token before the shared ShopTerminalBehavior component check (printers and multishop terminals share that component), with an added "Distributor" name hint for DLC printer variants.
+- Ground items and bosses now honor a custom icon choice: their real pickup icon / portrait is used while the kind's icon setting is at default, and picking any other icon overrides it.
+- Full audit of every kind → toggle/icon/color/size mapping; all 25 kinds read from the same config table in both the minimap and the compass.
+
 ## 1.3.0
 
 - Used interactables now disappear from the map/compass: chests, multishops, drones, printers, scrappers, barrels, void potentials, command cubes and Newt Altars vanish shortly after being used. Chance shrines wait out a grace window because they lock for a few seconds between paid uses, and teleporter-locked shops reappear once unlocked.

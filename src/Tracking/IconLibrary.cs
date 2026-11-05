@@ -95,18 +95,19 @@ namespace OpenMinimap.Tracking
             }
         }
 
-        // Chooses the sprite a marker should currently display: real pickup icons for
-        // dropped items, the boss portrait for bosses, otherwise the kind's configured icon.
+        // Chooses the sprite a marker should currently display. Ground items use their real
+        // pickup icon and bosses use their portrait while the kind's icon setting is left at
+        // its default — picking a custom icon overrides the "smart" icon for that kind.
         public static Sprite ResolveSprite(TrackedMarker m, MapIcon iconChoice)
         {
-            if (m.Kind == MapKind.GroundItem && m.Pickup != null && m.Pickup.pickupIndex.isValid)
+            if (m.Kind == MapKind.GroundItem && iconChoice == MapIcon.Dot && m.Pickup != null && m.Pickup.pickupIndex.isValid)
             {
                 var def = PickupCatalog.GetPickupDef(m.Pickup.pickupIndex);
                 if (def != null && def.iconSprite != null)
                     return def.iconSprite;
                 return GetSprite(MapIcon.Dot);
             }
-            if (m.Kind == MapKind.EnemyBoss && m.Body != null)
+            if (m.Kind == MapKind.EnemyBoss && iconChoice == MapIcon.Attack && m.Body != null)
             {
                 var portrait = GetPortraitSprite(m.Body);
                 if (portrait != null)
@@ -184,7 +185,7 @@ namespace OpenMinimap.Tracking
             { MapKind.Scrapper, new KindDefault(MapIcon.WIP, Color.white, 22f) },
             { MapKind.Printer, new KindDefault(MapIcon.Edit, Color.white, 22f) },
             { MapKind.Multishop, new KindDefault(MapIcon.Chest, Color.white, 22f) },
-            { MapKind.MultishopTriple, new KindDefault(MapIcon.Loot, new Color(0.45f, 0.95f, 0.7f), 24f) },
+            { MapKind.MultishopTriple, new KindDefault(MapIcon.Ring, new Color(1f, 0.85f, 0.35f), 26f) },
             { MapKind.EquipmentBarrel, new KindDefault(MapIcon.Barrel, new Color(1f, 0.62f, 0.18f), 22f) },
             { MapKind.Barrel, new KindDefault(MapIcon.Barrel, Color.white, 20f) },
             { MapKind.Teleporter, new KindDefault(MapIcon.Teleporter, Color.white, 28f) },

@@ -475,13 +475,28 @@ namespace OpenMinimap.Tracking
             if (pi.isGoldShrine)
                 return MapKind.Shrine;
 
+            // Printers/multishops share the same component (ShopTerminalBehavior); only the
+            // DUPLICATOR token separates printers, so it must win before the terminal check.
+            // Triple shops are terminals whose parent structure has a MultiShopController.
             string token = pi.contextToken;
+            bool duplicatorToken = !string.IsNullOrEmpty(token) && token.IndexOf("DUPLICATOR", ig) >= 0;
+            if (duplicatorToken)
+                return MapKind.Printer;
+            if (pi.GetComponentInParent<MultiShopController>())
+            {
+                tinted = true;
+                return MapKind.MultishopTriple;
+            }
+            if (pi.GetComponent<ShopTerminalBehavior>())
+            {
+                tinted = true;
+                return MapKind.Multishop;
+            }
             if (!string.IsNullOrEmpty(token))
             {
-                if (token.IndexOf("DUPLICATOR", ig) >= 0) return MapKind.Printer;
                 if (token.IndexOf("TERMINAL", ig) >= 0)
                 {
-                    tinted = true; // tint by the item tier actually on offer
+                    tinted = true;
                     return MapKind.Multishop;
                 }
                 if (IsPortalToken(token)) return MapKind.Portal;
@@ -489,7 +504,7 @@ namespace OpenMinimap.Tracking
 
             // Name hints last — they catch DLC content with new components but familiar names.
             string n = go.name;
-            if (n.IndexOf("Duplicator", ig) >= 0 || n.IndexOf("Printer", ig) >= 0 || n.IndexOf("Cauldron", ig) >= 0) return MapKind.Printer;
+            if (n.IndexOf("Duplicator", ig) >= 0 || n.IndexOf("Printer", ig) >= 0 || n.IndexOf("Cauldron", ig) >= 0 || n.IndexOf("Distributor", ig) >= 0) return MapKind.Printer;
             if (n.IndexOf("Multishop", ig) >= 0 || n.IndexOf("ShopTerminal", ig) >= 0)
             {
                 tinted = true;

@@ -1,6 +1,6 @@
 {
   "name": "OpenMinimap",
-  "version_number": "1.3.0",
+  "version_number": "1.3.1",
   "website_url": "https://github.com/ntqueryinformation/RoR2-Minimap",
   "description": "Minimap (top-right) and optional compass (top-center) HUD using in-game icons. Zoom, orientation, opacity and every object category selectable in Risk of Options. Supports all DLC content.",
   "dependencies": [
