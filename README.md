@@ -12,7 +12,7 @@ A minimap and compass HUD for **Risk of Rain 2** that shows every interactable, 
 ### Object categories — every one individually configurable
 Every kind below can be **switched off**, given **another icon** (24 choices, mostly the game's own icons plus generated dot/triangle/ring), recolored, and resized — all from Risk of Options:
 
-Chests (regular/timed) · Large chests (red) · Category chests (tier-colored) · Shrines (all DLC types) · Newt Altars · Drones for sale · Broken drones · Scrapper · 3D printers & cauldrons · Multishops (tinted by the item tier on offer) · Equipment barrels (orange) · Money barrels · Teleporter (yellow while charging with a live % label and the holdout-zone radius ring, green when charged) · Portals · Void potentials · Command cubes · Ground items (their real pickup icons) · Enemies · Elite enemies (own icon & color) · Bosses (real portrait) · Your minions · Other players · Other/unknown
+Chests (regular/timed) · Large chests (red) · Category chests (tier-colored) · Shrines (all DLC types) · Newt Altars · Drones for sale · Broken drones · Scrapper · 3D printers & cauldrons · Multishops (tinted by the item tier on offer) · Triple shops (merged into one marker) · Equipment barrels (orange) · Money barrels · Teleporter (yellow while charging with a live % label and the holdout-zone radius ring, green when charged) · Portals · Void potentials · Command cubes · Hallowed Relics (hex icon) · Ground items (their real pickup icons) · Enemies · Elite enemies (own icon & color) · Bosses (real portrait) · Your minions · Other players · Other/unknown
 
 ### Enemies
 - One master switch hides **all** hostiles (regular, elite and boss).
